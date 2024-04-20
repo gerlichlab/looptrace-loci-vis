@@ -1,0 +1,16 @@
+name: looptrace-loci-vis
+contributions:
+  commands:
+  - id: looptrace-loci-vis.read_looptrace_locus_points
+    title: Read looptrace locus-specific image points data and overlays
+    python_name: looptrace_loci_vis.reader:get_reader
+  readers:
+  - command: looptrace-loci-vis.read_looptrace_locus_points
+    filename_patterns:
+    # - '*.qcfail.csv'
+    # - '*.qcpass.csv'
+    # - '*.qc_fail.csv'
+    # - '*.qc_pass.csv'
+    #accepts_directories: false
+      - 'P*'
+    accepts_directories: true
