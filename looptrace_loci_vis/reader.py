@@ -1,9 +1,9 @@
 """Reading locus-specific spots and points data from looptrace for visualisation in napari"""
 
+from collections.abc import Callable
 import csv
 import logging
 import os
-from collections.abc import Callable
 from enum import Enum
 from pathlib import Path
 from typing import Optional
@@ -13,13 +13,10 @@ from gertils.types import FieldOfViewFrom1
 from gertils.zarr_tools import read_zarr
 from numpydoc_decorator import doc  # type: ignore[import-untyped]
 
-from ._parse_old_style_no_header import parse_failed, parse_passed
-from ._types import ImageLayer, PathLike, PathOrPaths, PointsLayer, Reader
-
-
-# See: https://davidmathlogic.com/colorblind/
-DEEP_SKY_BLUE = "#0C7BDC"
-GOLDENROD = "#FFC20A"
+from ._const import DEEP_SKY_BLUE, GOLDENROD
+from ._parse_old_style_without_header import parse_failed_records, parse_passed_records
+from .point_record import PointRecord, expand_along_z
+from ._types import CsvRow, ImageLayer, LayerParams, PathLike, PathOrPaths, PointsLayer, QCFailReasons, Reader
 
 
 class QCStatus(Enum):
@@ -127,14 +124,19 @@ def build_single_file_points_layer(path: PathLike) -> PointsLayer:
 
     # Determine how to read and display the points layer to be parsed.
     qc = QCStatus.from_csv_path(path)
+    read_rows: Callable[[CsvRow], tuple[list[PointRecord], list[bool], LayerParams]]
     if qc == QCStatus.PASS:
         logging.debug("Will parse sas QC-pass: %s", path)
         color = GOLDENROD
-        read_rows = parse_passed
+        def read_rows(rows):
+            records = parse_passed_records(rows)
+            return records_to_qcpass_layer_data(records)
     elif qc == QCStatus.FAIL:
         logging.debug("Will parse as QC-fail: %s", path)
         color = DEEP_SKY_BLUE
-        read_rows = parse_failed
+        def read_rows(rows):
+            record_qc_pairs = parse_failed_records(rows)
+            return records_to_qcfail_layer_data(record_qc_pairs)
     else:
         do_not_parse(path=path, why="Could not infer QC status", level=logging.ERROR)
         raise ValueError(
@@ -154,3 +156,36 @@ def build_single_file_points_layer(path: PathLike) -> PointsLayer:
     params = {**static_params, **base_meta, **extra_meta, **shape_meta}
 
     return [pt_rec.flatten() for pt_rec in point_records], params, "points"
+
+
+def records_to_qcpass_layer_data(records: list[PointRecord]) -> tuple[list[PointRecord], list[bool], LayerParams]:
+    max_z = max(r.get_z_coordinate() for r in records)
+    points: list[PointRecord] = []
+    center_flags: list[bool] = []
+    for rec in records:
+        new_points, new_flags = expand_along_z(rec, z_max=max_z)
+        points.extend(new_points)
+        center_flags.extend(new_flags)
+    sizes = [1.5 if is_center else 1.0 for is_center in center_flags]
+    return points, center_flags, {"size": sizes}    
+
+
+def records_to_qcfail_layer_data(record_qc_pairs: list[tuple[PointRecord, QCFailReasons]]) -> tuple[list[PointRecord], list[bool], LayerParams]:
+    max_z = max(r.get_z_coordinate() for r, _ in record_qc_pairs)
+    points: list["PointRecord"] = []
+    center_flags: list[bool] = []
+    codes: list[QCFailReasons] = []
+    for rec, qc in record_qc_pairs:
+        new_points, new_flags = expand_along_z(rec, z_max=max_z)
+        points.extend(new_points)
+        center_flags.extend(new_flags)
+        codes.extend([qc] * len(new_points))
+    params = {
+        "size": 0,  # Make the point invisible and just use text.
+        "text": {
+            "string": "{failCodes}",
+            "color": DEEP_SKY_BLUE,
+        },
+        "properties": {"failCodes": codes},
+    }
+    return points, center_flags, params

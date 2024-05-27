@@ -7,6 +7,7 @@ from typing import Literal, Union
 from gertils.geometry import ZCoordinate
 from gertils.types import PixelArray
 
+CsvRow = list[str]
 FlatPointRecord = list[Union[float, ZCoordinate]]
 LayerParams = dict[str, object]
 ImageLayer = tuple[PixelArray, LayerParams, Literal["image"]]

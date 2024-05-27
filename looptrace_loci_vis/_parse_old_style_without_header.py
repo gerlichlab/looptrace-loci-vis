@@ -1,13 +1,16 @@
+"""Definitions related to parsing simple table-like file with no header"""
+
+from enum import Enum
+import logging
+
 from numpydoc_decorator import doc
 
 from gertils.geometry import ImagePoint3D
 from gertils.types import TimepointFrom0 as Timepoint
 from gertils.types import TraceIdFrom0 as TraceId
 
-from .point_record import PointRecord, expand_along_z
-from ._types import LayerParams, QCFailReasons
-
-CsvRow = list[str]
+from .point_record import PointRecord
+from ._types import CsvRow, QCFailReasons
 
 
 @doc(
@@ -19,19 +22,8 @@ CsvRow = list[str]
     """,
     notes="https://napari.org/stable/plugins/guides.html#layer-data-tuples",
 )
-def parse_passed(  # noqa: D103
-    rows: list[CsvRow],
-) -> tuple[list["PointRecord"], list[bool], LayerParams]:
-    records = [parse_simple_record(r, exp_num_fields=5) for r in rows]
-    max_z = max(r.get_z_coordinate() for r in records)
-    points: list["PointRecord"] = []
-    center_flags: list[bool] = []
-    for rec in records:
-        new_points, new_flags = expand_along_z(rec, z_max=max_z)
-        points.extend(new_points)
-        center_flags.extend(new_flags)
-    sizes = [1.5 if is_center else 1.0 for is_center in center_flags]
-    return points, center_flags, {"size": sizes}
+def parse_passed_records(rows: list[CsvRow]) -> list[PointRecord]: # noqa: D103
+    return [parse_simple_record(r, exp_num_fields=5) for r in rows]
 
 
 @doc(
@@ -43,9 +35,7 @@ def parse_passed(  # noqa: D103
     """,
     notes="https://napari.org/stable/plugins/guides.html#layer-data-tuples",
 )
-def parse_failed(  # noqa: D103
-    rows: list[CsvRow],
-) -> tuple[list["PointRecord"], list[bool], LayerParams]:
+def parse_failed(rows: list[CsvRow]) -> list[tuple[PointRecord, QCFailReasons]]: # noqa: D103
     record_qc_pairs: list[tuple[PointRecord, QCFailReasons]] = []
     for row in rows:
         try:
@@ -55,24 +45,7 @@ def parse_failed(  # noqa: D103
             logging.exception("Bad row: %s", row)
             raise
         record_qc_pairs.append((rec, qc))
-    max_z = max(r.get_z_coordinate() for r, _ in record_qc_pairs)
-    points: list["PointRecord"] = []
-    center_flags: list[bool] = []
-    codes: list[QCFailReasons] = []
-    for rec, qc in record_qc_pairs:
-        new_points, new_flags = expand_along_z(rec, z_max=max_z)
-        points.extend(new_points)
-        center_flags.extend(new_flags)
-        codes.extend([qc] * len(new_points))
-    params = {
-        "size": 0,  # Make the point invisible and just use text.
-        "text": {
-            "string": "{failCodes}",
-            "color": DEEP_SKY_BLUE,
-        },
-        "properties": {"failCodes": codes},
-    }
-    return points, center_flags, params
+    return record_qc_pairs
 
 
 @doc(
