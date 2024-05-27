@@ -14,7 +14,7 @@ from gertils.zarr_tools import read_zarr
 from numpydoc_decorator import doc  # type: ignore[import-untyped]
 
 from ._const import DEEP_SKY_BLUE, GOLDENROD
-from ._parse_old_style_without_header import parse_failed_records, parse_passed_records
+from ._parse_old_style_without_header import parse_failed_rows, parse_passed_rows
 from .point_record import PointRecord, expand_along_z
 from ._types import CsvRow, ImageLayer, LayerParams, PathLike, PathOrPaths, PointsLayer, QCFailReasons, Reader
 
@@ -129,13 +129,13 @@ def build_single_file_points_layer(path: PathLike) -> PointsLayer:
         logging.debug("Will parse sas QC-pass: %s", path)
         color = GOLDENROD
         def read_rows(rows):
-            records = parse_passed_records(rows)
+            records = parse_passed_rows(rows)
             return records_to_qcpass_layer_data(records)
     elif qc == QCStatus.FAIL:
         logging.debug("Will parse as QC-fail: %s", path)
         color = DEEP_SKY_BLUE
         def read_rows(rows):
-            record_qc_pairs = parse_failed_records(rows)
+            record_qc_pairs = parse_failed_rows(rows)
             return records_to_qcfail_layer_data(record_qc_pairs)
     else:
         do_not_parse(path=path, why="Could not infer QC status", level=logging.ERROR)

@@ -18,7 +18,7 @@ class MappingLike(Protocol):
     def __getitem__(k: str) -> object: ...
 
 
-def parse_passed(points_file: PathLike) -> tuple[list[PointRecord], list[bool], LayerParams]:
+def parse_passed_file(points_file: PathLike) -> tuple[list[PointRecord], list[bool], LayerParams]:
     logging.debug("Reading as QC-pass: %s", points_file)
     points_table: pd.DataFrame = pd.read_csv(points_file)
     return [parse_simple_record(row) for _, row in points_table.iterrows()]

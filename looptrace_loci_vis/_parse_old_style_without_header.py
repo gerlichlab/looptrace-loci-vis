@@ -22,7 +22,7 @@ from ._types import CsvRow, QCFailReasons
     """,
     notes="https://napari.org/stable/plugins/guides.html#layer-data-tuples",
 )
-def parse_passed_records(rows: list[CsvRow]) -> list[PointRecord]: # noqa: D103
+def parse_passed_rows(rows: list[CsvRow]) -> list[PointRecord]: # noqa: D103
     return [parse_simple_record(r, exp_num_fields=5) for r in rows]
 
 
@@ -35,7 +35,7 @@ def parse_passed_records(rows: list[CsvRow]) -> list[PointRecord]: # noqa: D103
     """,
     notes="https://napari.org/stable/plugins/guides.html#layer-data-tuples",
 )
-def parse_failed(rows: list[CsvRow]) -> list[tuple[PointRecord, QCFailReasons]]: # noqa: D103
+def parse_failed_rows(rows: list[CsvRow]) -> list[tuple[PointRecord, QCFailReasons]]: # noqa: D103
     record_qc_pairs: list[tuple[PointRecord, QCFailReasons]] = []
     for row in rows:
         try:
