@@ -1,7 +1,6 @@
 """Reading locus-specific spots and points data from looptrace for visualisation in napari"""
 
 from collections.abc import Callable
-import csv
 import logging
 import os
 from enum import Enum
@@ -13,10 +12,10 @@ from gertils.types import FieldOfViewFrom1
 from gertils.zarr_tools import read_zarr
 from numpydoc_decorator import doc  # type: ignore[import-untyped]
 
-from ._const import DEEP_SKY_BLUE, GOLDENROD
-from ._parse_old_style_without_header import parse_failed_rows, parse_passed_rows
+from .points_parser import HeadedTraceTimePointParser, HeadlessTraceTimePointParser, PointsParser
 from .point_record import PointRecord, expand_along_z
-from ._types import CsvRow, ImageLayer, LayerParams, PathLike, PathOrPaths, PointsLayer, QCFailReasons, Reader
+from ._const import PointColor
+from ._types import ImageLayer, LayerParams, PathLike, PathOrPaths, PointsLayer, QCFailReasons, Reader
 
 
 class QCStatus(Enum):
@@ -43,16 +42,6 @@ class QCStatus(Enum):
         return f".qc{self.value}.csv"
 
 
-def do_not_parse(*, path: PathLike, why: str, level: int = logging.DEBUG) -> None:
-    """Log a message about why a path can't be parsed."""
-    logging.log(
-        level,
-        "%s, cannot be read as looptrace locus-specific points: %s",
-        why,
-        path,
-    )
-
-
 @doc(
     summary="Read and display locus-specific spots from looptrace.",
     parameters=dict(path="Path from which to parse layers"),
@@ -63,19 +52,19 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103
     if not isinstance(path, str | Path):
         return None
     if not os.path.isdir(path):  # noqa: PTH112
-        do_not_parse(path=path, why="Not a folder/directory")
+        _do_not_parse(path=path, why="Not a folder/directory")
         return None
     path_by_fov: dict[FieldOfViewFrom1, list[Path]] = find_multiple_paths_by_fov(
         path, extensions=(".zarr", *(qc.filename_extension for qc in QCStatus))
     )
     if len(path_by_fov) != 1:
-        do_not_parse(
+        _do_not_parse(
             path=path, why=f"Not exactly 1 FOV found, but rather {len(path_by_fov)}, found"
         )
         return None
     fov, files = next(iter(path_by_fov.items()))
     if len(files) != 3:  # noqa: PLR2004
-        do_not_parse(
+        _do_not_parse(
             path=path, why=f"Not exactly 3 files, but rather {len(files)}, found for {fov}"
         )
         return None
@@ -88,7 +77,7 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103
         fail_path = path_by_status.pop(QCStatus.FAIL)
         pass_path = path_by_status.pop(QCStatus.PASS)
     except KeyError:
-        do_not_parse(path=path, why="Could not find 1 each of QC status (pass/fail)")
+        _do_not_parse(path=path, why="Could not find 1 each of QC status (pass/fail)")
         return None
     if len(path_by_status) != 0:
         raise RuntimeError(f"Extra QC status/path pairs! {path_by_status}")
@@ -102,7 +91,7 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103
         potential_zarr.suffix != ".zarr"
         or get_fov_sort_key(potential_zarr, extension=".zarr") != fov
     ):
-        do_not_parse(path=path, why=f"Could not find ZARR for FOV {fov}")
+        _do_not_parse(path=path, why=f"Could not find ZARR for FOV {fov}")
         return None
 
     def parse(_):  # type: ignore[no-untyped-def] # noqa: ANN202 ANN001
@@ -122,38 +111,45 @@ def build_single_file_points_layer(path: PathLike) -> PointsLayer:
         "n_dimensional": False,
     }
 
-    # Determine how to read and display the points layer to be parsed.
     qc = QCStatus.from_csv_path(path)
-    read_rows: Callable[[CsvRow], tuple[list[PointRecord], list[bool], LayerParams]]
+    
+    # Determine how to read and display the points layer to be parsed.
+    # First, determine the parsing strategy based on file header.
+    parser: PointsParser[PathLike]
+    read_file: Callable[[PathLike], list[PointRecord]]
+    process_records: Callable[[list[PointRecord]], tuple[list[PointRecord], list[bool], LayerParams]]
+    if _has_header(path):
+        logging.debug("Will parse has having header: %s", path)
+        parser = HeadedTraceTimePointParser
+    else:
+        logging.debug("Will parse as headless: %s", path)
+        parser = HeadlessTraceTimePointParser
+    # Then, determine the functions to used based on inferred QC status.
     if qc == QCStatus.PASS:
         logging.debug("Will parse sas QC-pass: %s", path)
-        color = GOLDENROD
-        def read_rows(rows):
-            records = parse_passed_rows(rows)
-            return records_to_qcpass_layer_data(records)
+        color = PointColor.GOLDENROD
+        read_file = parser.parse_all_qcpass
+        process_records = records_to_qcpass_layer_data
     elif qc == QCStatus.FAIL:
         logging.debug("Will parse as QC-fail: %s", path)
-        color = DEEP_SKY_BLUE
-        def read_rows(rows):
-            record_qc_pairs = parse_failed_rows(rows)
-            return records_to_qcfail_layer_data(record_qc_pairs)
+        color = PointColor.DEEP_SKY_BLUE
+        read_file = parser.parse_all_qcfail
+        process_records = records_to_qcfail_layer_data
     else:
-        do_not_parse(path=path, why="Could not infer QC status", level=logging.ERROR)
+        _do_not_parse(path=path, why="Could not infer QC status", level=logging.ERROR)
         raise ValueError(
             f"Despite undertaking parse, file from which QC status could not be parsed was encountered: {path}"
         )
+    
+    # Use the information gleaned from filename and from file header to determine point color and to read data.
+    color_meta = {"edge_color": color.value, "face_color": color.value}
+    base_point_records = read_file(path)
+    point_records, center_flags, extra_meta = process_records(base_point_records)
 
-    base_meta = {"edge_color": color, "face_color": color}
-
-    with open(path, newline="") as fh:  # noqa: PTH123
-        rows = list(csv.reader(fh))
-    point_records, center_flags, extra_meta = read_rows(rows)
     if not point_records:
         logging.warning("No data rows parsed!")
-    shape_meta = {
-        "symbol": ["*" if is_center else "o" for is_center in center_flags],
-    }
-    params = {**static_params, **base_meta, **extra_meta, **shape_meta}
+    shape_meta = {"symbol": ["*" if is_center else "o" for is_center in center_flags]}
+    params = {**static_params, **color_meta, **extra_meta, **shape_meta}
 
     return [pt_rec.flatten() for pt_rec in point_records], params, "points"
 
@@ -184,8 +180,24 @@ def records_to_qcfail_layer_data(record_qc_pairs: list[tuple[PointRecord, QCFail
         "size": 0,  # Make the point invisible and just use text.
         "text": {
             "string": "{failCodes}",
-            "color": DEEP_SKY_BLUE,
+            "color": PointColor.DEEP_SKY_BLUE.value,
         },
         "properties": {"failCodes": codes},
     }
     return points, center_flags, params
+
+
+def _do_not_parse(*, path: PathLike, why: str, level: int = logging.DEBUG) -> None:
+    """Log a message about why a path can't be parsed."""
+    logging.log(
+        level,
+        "%s, cannot be read as looptrace locus-specific points: %s",
+        why,
+        path,
+    )
+
+
+def _has_header(path: PathLike) -> bool:
+    with open(path, "r") as fh:  # noqa: PTH123
+        header = fh.readline()
+    return HeadedTraceTimePointParser.TIME_INDEX_COLUMN in header
