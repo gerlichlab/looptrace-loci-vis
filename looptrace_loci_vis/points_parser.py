@@ -57,8 +57,9 @@ class HeadedTraceTimePointParser(IterativePointsParser[PathLike, MappingLike]):
     TIME_INDEX_COLUMN = "timeIndex"
 
     @classmethod
-    def _gen_records(cls, data: PathLike) -> pd.DataFrame:
-        return pd.read_csv(data)
+    def _gen_records(cls, data: PathLike) -> Iterable[MappingLike]:
+        for _, row in pd.read_csv(data).iterrows():
+            yield row
     
     @classmethod
     def _parse_single_qcpass_record(cls, record: MappingLike) -> PointRecord:
