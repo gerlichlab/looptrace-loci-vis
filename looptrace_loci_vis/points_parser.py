@@ -63,7 +63,7 @@ class HeadedTraceTimePointParser(IterativePointsParser[PathLike, MappingLike]):
     
     @classmethod
     def _parse_single_qcpass_record(cls, record: MappingLike) -> PointRecord:
-        trace = TraceId(int(record["traceId"]))
+        trace = TraceId(int(record["traceIndex"]))
         timepoint = Timepoint(int(record[cls.TIME_INDEX_COLUMN]))
         z = float(record["z"])
         y = float(record["y"])
