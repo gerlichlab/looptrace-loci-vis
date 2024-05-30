@@ -18,7 +18,7 @@ I1 = TypeVar("I1")
 I2 = TypeVar("I2", bound=Sized)
 
 
-class MappingLike(Protocol): # noqa: D101
+class MappingLike(Protocol):  # noqa: D101
     def __getitem__(self, key: str) -> object: ...
 
 
@@ -26,10 +26,10 @@ class PointsParser(Protocol, Generic[Input]):
     """Something capable of parsing a QC-pass or -fail CSV file"""
 
     @classmethod
-    def parse_all_qcpass(cls, data: Input) -> list[PointRecord]: ... # noqa: D102
+    def parse_all_qcpass(cls, data: Input) -> list[PointRecord]: ...  # noqa: D102
 
     @classmethod
-    def parse_all_qcfail(cls, data: Input) -> list[tuple[PointRecord, QCFailReasons]]: ... # noqa: D102
+    def parse_all_qcfail(cls, data: Input) -> list[tuple[PointRecord, QCFailReasons]]: ...  # noqa: D102
 
 
 class IterativePointsParser(Generic[I1, I2], PointsParser[I1]):
@@ -45,11 +45,11 @@ class IterativePointsParser(Generic[I1, I2], PointsParser[I1]):
     def _parse_single_qcfail_record(cls, record: I2) -> tuple[PointRecord, QCFailReasons]: ...
 
     @classmethod
-    def parse_all_qcpass(cls, data: I1) -> list[PointRecord]: # noqa: D102
+    def parse_all_qcpass(cls, data: I1) -> list[PointRecord]:  # noqa: D102
         return [cls._parse_single_qcpass_record(r) for r in cls._gen_records(data)]
 
     @classmethod
-    def parse_all_qcfail(cls, data: I1) -> list[tuple[PointRecord, QCFailReasons]]: # noqa: D102
+    def parse_all_qcfail(cls, data: I1) -> list[tuple[PointRecord, QCFailReasons]]:  # noqa: D102
         return [cls._parse_single_qcfail_record(r) for r in cls._gen_records(data)]
 
 
@@ -117,7 +117,7 @@ class HeadlessTraceTimePointParser(IterativePointsParser[PathLike, CsvRow]):
 
     @classmethod
     def _gen_records(cls, data: PathLike) -> Iterable[CsvRow]:
-        with open(data, newline="") as fh: # noqa: PTH123
+        with open(data, newline="") as fh:  # noqa: PTH123
             return list(csv.reader(fh))
 
     @classmethod

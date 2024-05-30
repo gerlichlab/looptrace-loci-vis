@@ -125,7 +125,9 @@ def build_single_file_points_layer(path: PathLike) -> PointsLayer:
     # First, determine the parsing strategy based on file header.
     parser: PointsParser[PathLike]
     read_file: Callable[[PathLike], list[PointRecord]]
-    process_records: Callable[[list[PointRecord]], tuple[list[PointRecord], list[bool], LayerParams]]
+    process_records: Callable[
+        [list[PointRecord]], tuple[list[PointRecord], list[bool], LayerParams]
+    ]
     if _has_header(path):
         logging.debug("Will parse has having header: %s", path)
         parser = HeadedTraceTimePointParser
@@ -162,7 +164,9 @@ def build_single_file_points_layer(path: PathLike) -> PointsLayer:
     return [pt_rec.flatten() for pt_rec in point_records], params, "points"
 
 
-def records_to_qcpass_layer_data(records: list[PointRecord]) -> tuple[list[PointRecord], list[bool], LayerParams]:
+def records_to_qcpass_layer_data(
+    records: list[PointRecord],
+) -> tuple[list[PointRecord], list[bool], LayerParams]:
     """Extend the given records partially through a z-stack, designate appropriately as central-plane or not."""
     max_z = max(r.get_z_coordinate() for r in records)
     points: list[PointRecord] = []
@@ -175,7 +179,9 @@ def records_to_qcpass_layer_data(records: list[PointRecord]) -> tuple[list[Point
     return points, center_flags, {"size": sizes}
 
 
-def records_to_qcfail_layer_data(record_qc_pairs: list[tuple[PointRecord, QCFailReasons]]) -> tuple[list[PointRecord], list[bool], LayerParams]:
+def records_to_qcfail_layer_data(
+    record_qc_pairs: list[tuple[PointRecord, QCFailReasons]],
+) -> tuple[list[PointRecord], list[bool], LayerParams]:
     """Extend the given records partially through a z-stack, designate appropriately as central-plane or not; also set fail codes text."""
     max_z = max(r.get_z_coordinate() for r, _ in record_qc_pairs)
     points: list["PointRecord"] = []
