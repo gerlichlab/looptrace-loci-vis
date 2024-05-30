@@ -8,7 +8,7 @@ import numpy as np
 from gertils.geometry import ImagePoint3D, LocatableXY, LocatableZ, ZCoordinate
 from gertils.types import TimepointFrom0 as Timepoint
 from gertils.types import TraceIdFrom0 as TraceId
-from numpydoc_decorator import doc
+from numpydoc_decorator import doc  # type: ignore[import-untyped]
 
 from ._types import FlatPointRecord
 

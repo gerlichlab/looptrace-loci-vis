@@ -1,5 +1,6 @@
 """Abstractions related to points parsing"""
 
+import abc
 import csv
 from collections.abc import Iterable, Sized
 from enum import Enum
@@ -18,17 +19,23 @@ I1 = TypeVar("I1")
 I2 = TypeVar("I2", bound=Sized)
 
 
-class MappingLike(Protocol):  # noqa: D101
+class MappingLike(Protocol, Sized):  # noqa: D101
+    @abc.abstractmethod
     def __getitem__(self, key: str) -> object: ...
+
+    @abc.abstractmethod
+    def __len__(self) -> int: ...
 
 
 class PointsParser(Protocol, Generic[Input]):
     """Something capable of parsing a QC-pass or -fail CSV file"""
 
     @classmethod
+    @abc.abstractmethod
     def parse_all_qcpass(cls, data: Input) -> list[PointRecord]: ...  # noqa: D102
 
     @classmethod
+    @abc.abstractmethod
     def parse_all_qcfail(cls, data: Input) -> list[tuple[PointRecord, QCFailReasons]]: ...  # noqa: D102
 
 
@@ -36,12 +43,15 @@ class IterativePointsParser(Generic[I1, I2], PointsParser[I1]):
     """Something that yields records, each of type I2 from value of type I1, to parse QC-pass/-fail points"""
 
     @classmethod
+    @abc.abstractmethod
     def _gen_records(cls, data: I1) -> Iterable[I2]: ...
 
     @classmethod
+    @abc.abstractmethod
     def _parse_single_qcpass_record(cls, record: I2) -> PointRecord: ...
 
     @classmethod
+    @abc.abstractmethod
     def _parse_single_qcfail_record(cls, record: I2) -> tuple[PointRecord, QCFailReasons]: ...
 
     @classmethod
@@ -65,11 +75,11 @@ class HeadedTraceTimePointParser(IterativePointsParser[PathLike, MappingLike]):
 
     @classmethod
     def _parse_single_qcpass_record(cls, record: MappingLike) -> PointRecord:
-        trace = TraceId(int(record["traceIndex"]))
-        timepoint = Timepoint(int(record[cls.TIME_INDEX_COLUMN]))
-        z = float(record["z"])
-        y = float(record["y"])
-        x = float(record["x"])
+        trace = TraceId(int(record["traceIndex"]))  # type: ignore[call-overload]
+        timepoint = Timepoint(int(record[cls.TIME_INDEX_COLUMN]))  # type: ignore[call-overload]
+        z = float(record["z"])  # type: ignore[arg-type]
+        y = float(record["y"])  # type: ignore[arg-type]
+        x = float(record["x"])  # type: ignore[arg-type]
         point = ImagePoint3D(z=z, y=y, x=x)
         return PointRecord(trace_id=trace, timepoint=timepoint, point=point)
 
@@ -78,6 +88,9 @@ class HeadedTraceTimePointParser(IterativePointsParser[PathLike, MappingLike]):
         """A fail record parses the same as a pass one, just with one additional field for QC fail reasons."""
         pt_rec = cls._parse_single_qcpass_record(record)
         fail_code = record["failCode"]
+        if not isinstance(fail_code, str):
+            raise TypeError(f"failCode is not str, but {type(fail_code).__name__}")
+        fail_code: str = str(fail_code)  # type: ignore[no-redef]
         return pt_rec, fail_code
 
 

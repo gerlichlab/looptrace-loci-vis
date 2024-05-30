@@ -2,7 +2,6 @@
 
 import logging
 import os
-from collections.abc import Callable
 from enum import Enum
 from pathlib import Path
 from typing import Optional
@@ -124,10 +123,6 @@ def build_single_file_points_layer(path: PathLike) -> PointsLayer:
     # Determine how to read and display the points layer to be parsed.
     # First, determine the parsing strategy based on file header.
     parser: PointsParser[PathLike]
-    read_file: Callable[[PathLike], list[PointRecord]]
-    process_records: Callable[
-        [list[PointRecord]], tuple[list[PointRecord], list[bool], LayerParams]
-    ]
     if _has_header(path):
         logging.debug("Will parse has having header: %s", path)
         parser = HeadedTraceTimePointParser
@@ -143,8 +138,8 @@ def build_single_file_points_layer(path: PathLike) -> PointsLayer:
     elif qc == QCStatus.FAIL:
         logging.debug("Will parse as QC-fail: %s", path)
         color = PointColor.DEEP_SKY_BLUE
-        read_file = parser.parse_all_qcfail
-        process_records = records_to_qcfail_layer_data
+        read_file = parser.parse_all_qcfail  # type: ignore[assignment]
+        process_records = records_to_qcfail_layer_data  # type: ignore[assignment]
     else:
         _do_not_parse(path=path, why="Could not infer QC status", level=logging.ERROR)
         raise ValueError(
