@@ -1,8 +1,8 @@
 """Reading locus-specific spots and points data from looptrace for visualisation in napari"""
 
-from collections.abc import Callable
 import logging
 import os
+from collections.abc import Callable
 from enum import Enum
 from pathlib import Path
 from typing import Optional
@@ -12,10 +12,18 @@ from gertils.types import FieldOfViewFrom1
 from gertils.zarr_tools import read_zarr
 from numpydoc_decorator import doc  # type: ignore[import-untyped]
 
-from .points_parser import HeadedTraceTimePointParser, HeadlessTraceTimePointParser, PointsParser
-from .point_record import PointRecord, expand_along_z
 from ._const import PointColor
-from ._types import ImageLayer, LayerParams, PathLike, PathOrPaths, PointsLayer, QCFailReasons, Reader
+from ._types import (
+    ImageLayer,
+    LayerParams,
+    PathLike,
+    PathOrPaths,
+    PointsLayer,
+    QCFailReasons,
+    Reader,
+)
+from .point_record import PointRecord, expand_along_z
+from .points_parser import HeadedTraceTimePointParser, HeadlessTraceTimePointParser, PointsParser
 
 
 class QCStatus(Enum):
@@ -112,7 +120,7 @@ def build_single_file_points_layer(path: PathLike) -> PointsLayer:
     }
 
     qc = QCStatus.from_csv_path(path)
-    
+
     # Determine how to read and display the points layer to be parsed.
     # First, determine the parsing strategy based on file header.
     parser: PointsParser[PathLike]
@@ -140,7 +148,7 @@ def build_single_file_points_layer(path: PathLike) -> PointsLayer:
         raise ValueError(
             f"Despite undertaking parse, file from which QC status could not be parsed was encountered: {path}"
         )
-    
+
     # Use the information gleaned from filename and from file header to determine point color and to read data.
     color_meta = {"edge_color": color.value, "face_color": color.value}
     base_point_records = read_file(path)
@@ -155,6 +163,7 @@ def build_single_file_points_layer(path: PathLike) -> PointsLayer:
 
 
 def records_to_qcpass_layer_data(records: list[PointRecord]) -> tuple[list[PointRecord], list[bool], LayerParams]:
+    """Extend the given records partially through a z-stack, designate appropriately as central-plane or not."""
     max_z = max(r.get_z_coordinate() for r in records)
     points: list[PointRecord] = []
     center_flags: list[bool] = []
@@ -163,10 +172,11 @@ def records_to_qcpass_layer_data(records: list[PointRecord]) -> tuple[list[Point
         points.extend(new_points)
         center_flags.extend(new_flags)
     sizes = [1.5 if is_center else 1.0 for is_center in center_flags]
-    return points, center_flags, {"size": sizes}    
+    return points, center_flags, {"size": sizes}
 
 
 def records_to_qcfail_layer_data(record_qc_pairs: list[tuple[PointRecord, QCFailReasons]]) -> tuple[list[PointRecord], list[bool], LayerParams]:
+    """Extend the given records partially through a z-stack, designate appropriately as central-plane or not; also set fail codes text."""
     max_z = max(r.get_z_coordinate() for r, _ in record_qc_pairs)
     points: list["PointRecord"] = []
     center_flags: list[bool] = []
@@ -198,6 +208,6 @@ def _do_not_parse(*, path: PathLike, why: str, level: int = logging.DEBUG) -> No
 
 
 def _has_header(path: PathLike) -> bool:
-    with open(path, "r") as fh:  # noqa: PTH123
+    with open(path) as fh:  # noqa: PTH123
         header = fh.readline()
     return HeadedTraceTimePointParser.TIME_INDEX_COLUMN in header

@@ -1,6 +1,7 @@
 """Smoketests for locus-specific points"""
 
 from math import ceil
+
 from looptrace_loci_vis.points_parser import HeadlessTraceTimePointParser
 from looptrace_loci_vis.reader import records_to_qcfail_layer_data
 
@@ -30,7 +31,7 @@ def test_failed_sample_line_count(tmp_path):
     exp_z_ceil = 11
     assert obs_z_ceil == exp_z_ceil, f"Expected max Z of {exp_z_ceil} but got {obs_z_ceil}"
     exp_record_count = exp_z_ceil * exp_line_count
-    init_recs = HeadlessTraceTimePointParser.parse_all_qcfail(data_file) # noqa: E741
+    init_recs = HeadlessTraceTimePointParser.parse_all_qcfail(data_file)
     records, _, _ = records_to_qcfail_layer_data(init_recs)
     assert (
         len(records) == exp_record_count

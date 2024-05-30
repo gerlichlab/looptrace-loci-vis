@@ -5,11 +5,10 @@ from math import floor
 from typing import Union
 
 import numpy as np
-from numpydoc_decorator import doc
-
 from gertils.geometry import ImagePoint3D, LocatableXY, LocatableZ, ZCoordinate
 from gertils.types import TimepointFrom0 as Timepoint
 from gertils.types import TraceIdFrom0 as TraceId
+from numpydoc_decorator import doc
 
 from ._types import FlatPointRecord
 
