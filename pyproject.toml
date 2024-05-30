@@ -52,7 +52,7 @@ looptrace-loci-vis = "looptrace_loci_vis:napari.yaml"
 [project.optional-dependencies]
 formatting = [
     "codespell >= 2.2.4",
-    "ruff >= 0.3",
+    "ruff >= 0.4.6",
 ]
 linting = [
     "mypy >= 1.0.1",
@@ -122,6 +122,7 @@ ignore = [
     "N818",  # Exception should be named with an Error suffix
     "PLR0913", # Too many arguments in function definition
     "D401", # First line of docstring should be in imperative mood
+    "PLC0105", # This suggests suffixing a type variable with variance type (e.g., co/contra)
 
     # Imports and type annotations
     "ANN003",  # Missing type annotation for kwargs

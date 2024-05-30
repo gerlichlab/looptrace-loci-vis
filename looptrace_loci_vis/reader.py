@@ -1,40 +1,28 @@
 """Reading locus-specific spots and points data from looptrace for visualisation in napari"""
 
-import csv
-import dataclasses
 import logging
 import os
-from collections.abc import Callable
 from enum import Enum
-from math import floor
 from pathlib import Path
-from typing import Literal, Optional, Union
+from typing import Optional
 
-import numpy as np
-from gertils.geometry import ImagePoint3D, LocatableXY, LocatableZ, ZCoordinate
 from gertils.pathtools import find_multiple_paths_by_fov, get_fov_sort_key
-from gertils.types import FieldOfViewFrom1, PixelArray
-from gertils.types import TimepointFrom0 as Timepoint
-from gertils.types import TraceIdFrom0 as TraceId
+from gertils.types import FieldOfViewFrom1
 from gertils.zarr_tools import read_zarr
 from numpydoc_decorator import doc  # type: ignore[import-untyped]
 
-__author__ = "Vince Reuter"
-__credits__ = ["Vince Reuter"]
-
-CsvRow = list[str]
-FlatPointRecord = list[Union[float, ZCoordinate]]
-LayerParams = dict[str, object]
-ImageLayer = tuple[PixelArray, LayerParams, Literal["image"]]
-PointsLayer = tuple[list[FlatPointRecord], LayerParams, Literal["points"]]
-QCFailReasons = str
-PathLike = str | Path
-PathOrPaths = PathLike | list[PathLike]
-Reader = Callable[[PathLike], list[ImageLayer | PointsLayer]]
-
-# See: https://davidmathlogic.com/colorblind/
-DEEP_SKY_BLUE = "#0C7BDC"
-GOLDENROD = "#FFC20A"
+from ._const import PointColor
+from ._types import (
+    ImageLayer,
+    LayerParams,
+    PathLike,
+    PathOrPaths,
+    PointsLayer,
+    QCFailReasons,
+    Reader,
+)
+from .point_record import PointRecord, expand_along_z
+from .points_parser import HeadedTraceTimePointParser, HeadlessTraceTimePointParser, PointsParser
 
 
 class QCStatus(Enum):
@@ -61,16 +49,6 @@ class QCStatus(Enum):
         return f".qc{self.value}.csv"
 
 
-def do_not_parse(*, path: PathLike, why: str, level: int = logging.DEBUG) -> None:
-    """Log a message about why a path can't be parsed."""
-    logging.log(
-        level,
-        "%s, cannot be read as looptrace locus-specific points: %s",
-        why,
-        path,
-    )
-
-
 @doc(
     summary="Read and display locus-specific spots from looptrace.",
     parameters=dict(path="Path from which to parse layers"),
@@ -81,19 +59,19 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103
     if not isinstance(path, str | Path):
         return None
     if not os.path.isdir(path):  # noqa: PTH112
-        do_not_parse(path=path, why="Not a folder/directory")
+        _do_not_parse(path=path, why="Not a folder/directory")
         return None
     path_by_fov: dict[FieldOfViewFrom1, list[Path]] = find_multiple_paths_by_fov(
         path, extensions=(".zarr", *(qc.filename_extension for qc in QCStatus))
     )
     if len(path_by_fov) != 1:
-        do_not_parse(
+        _do_not_parse(
             path=path, why=f"Not exactly 1 FOV found, but rather {len(path_by_fov)}, found"
         )
         return None
     fov, files = next(iter(path_by_fov.items()))
     if len(files) != 3:  # noqa: PLR2004
-        do_not_parse(
+        _do_not_parse(
             path=path, why=f"Not exactly 3 files, but rather {len(files)}, found for {fov}"
         )
         return None
@@ -106,7 +84,7 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103
         fail_path = path_by_status.pop(QCStatus.FAIL)
         pass_path = path_by_status.pop(QCStatus.PASS)
     except KeyError:
-        do_not_parse(path=path, why="Could not find 1 each of QC status (pass/fail)")
+        _do_not_parse(path=path, why="Could not find 1 each of QC status (pass/fail)")
         return None
     if len(path_by_status) != 0:
         raise RuntimeError(f"Extra QC status/path pairs! {path_by_status}")
@@ -120,7 +98,7 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103
         potential_zarr.suffix != ".zarr"
         or get_fov_sort_key(potential_zarr, extension=".zarr") != fov
     ):
-        do_not_parse(path=path, why=f"Could not find ZARR for FOV {fov}")
+        _do_not_parse(path=path, why=f"Could not find ZARR for FOV {fov}")
         return None
 
     def parse(_):  # type: ignore[no-untyped-def] # noqa: ANN202 ANN001
@@ -140,52 +118,53 @@ def build_single_file_points_layer(path: PathLike) -> PointsLayer:
         "n_dimensional": False,
     }
 
-    # Determine how to read and display the points layer to be parsed.
     qc = QCStatus.from_csv_path(path)
+
+    # Determine how to read and display the points layer to be parsed.
+    # First, determine the parsing strategy based on file header.
+    parser: PointsParser[PathLike]
+    if _has_header(path):
+        logging.debug("Will parse has having header: %s", path)
+        parser = HeadedTraceTimePointParser
+    else:
+        logging.debug("Will parse as headless: %s", path)
+        parser = HeadlessTraceTimePointParser
+    # Then, determine the functions to used based on inferred QC status.
     if qc == QCStatus.PASS:
         logging.debug("Will parse sas QC-pass: %s", path)
-        color = GOLDENROD
-        read_rows = parse_passed
+        color = PointColor.GOLDENROD
+        read_file = parser.parse_all_qcpass
+        process_records = records_to_qcpass_layer_data
     elif qc == QCStatus.FAIL:
         logging.debug("Will parse as QC-fail: %s", path)
-        color = DEEP_SKY_BLUE
-        read_rows = parse_failed
+        color = PointColor.DEEP_SKY_BLUE
+        read_file = parser.parse_all_qcfail  # type: ignore[assignment]
+        process_records = records_to_qcfail_layer_data  # type: ignore[assignment]
     else:
-        do_not_parse(path=path, why="Could not infer QC status", level=logging.ERROR)
+        _do_not_parse(path=path, why="Could not infer QC status", level=logging.ERROR)
         raise ValueError(
             f"Despite undertaking parse, file from which QC status could not be parsed was encountered: {path}"
         )
 
-    base_meta = {"edge_color": color, "face_color": color}
+    # Use the information gleaned from filename and from file header to determine point color and to read data.
+    color_meta = {"edge_color": color.value, "face_color": color.value}
+    base_point_records = read_file(path)
+    point_records, center_flags, extra_meta = process_records(base_point_records)
 
-    with open(path, newline="") as fh:  # noqa: PTH123
-        rows = list(csv.reader(fh))
-    point_records, center_flags, extra_meta = read_rows(rows)
     if not point_records:
         logging.warning("No data rows parsed!")
-    shape_meta = {
-        "symbol": ["*" if is_center else "o" for is_center in center_flags],
-    }
-    params = {**static_params, **base_meta, **extra_meta, **shape_meta}
+    shape_meta = {"symbol": ["*" if is_center else "o" for is_center in center_flags]}
+    params = {**static_params, **color_meta, **extra_meta, **shape_meta}
 
     return [pt_rec.flatten() for pt_rec in point_records], params, "points"
 
 
-@doc(
-    summary="Parse records from points which passed QC.",
-    parameters=dict(rows="Records to parse"),
-    returns="""
-        A pair in which the first element is the array-like of points coordinates,
-        and the second element is the mapping from attribute name to list of values (1 per point).
-    """,
-    notes="https://napari.org/stable/plugins/guides.html#layer-data-tuples",
-)
-def parse_passed(  # noqa: D103
-    rows: list[CsvRow],
-) -> tuple[list["PointRecord"], list[bool], LayerParams]:
-    records = [parse_simple_record(r, exp_num_fields=5) for r in rows]
+def records_to_qcpass_layer_data(
+    records: list[PointRecord],
+) -> tuple[list[PointRecord], list[bool], LayerParams]:
+    """Extend the given records partially through a z-stack, designate appropriately as central-plane or not."""
     max_z = max(r.get_z_coordinate() for r in records)
-    points: list["PointRecord"] = []
+    points: list[PointRecord] = []
     center_flags: list[bool] = []
     for rec in records:
         new_points, new_flags = expand_along_z(rec, z_max=max_z)
@@ -195,29 +174,12 @@ def parse_passed(  # noqa: D103
     return points, center_flags, {"size": sizes}
 
 
-@doc(
-    summary="Parse records from points which failed QC.",
-    parameters=dict(rows="Records to parse"),
-    returns="""
-        A pair in which the first element is the array-like of points coordinates,
-        and the second element is the mapping from attribute name to list of values (1 per point).
-    """,
-    notes="https://napari.org/stable/plugins/guides.html#layer-data-tuples",
-)
-def parse_failed(  # noqa: D103
-    rows: list[CsvRow],
-) -> tuple[list["PointRecord"], list[bool], LayerParams]:
-    record_qc_pairs: list[tuple[PointRecord, QCFailReasons]] = []
-    for row in rows:
-        try:
-            qc = row[InputFileColumn.QC.get]
-            rec = parse_simple_record(row, exp_num_fields=6)
-        except IndexError:
-            logging.exception("Bad row: %s", row)
-            raise
-        record_qc_pairs.append((rec, qc))
+def records_to_qcfail_layer_data(
+    record_qc_pairs: list[tuple[PointRecord, QCFailReasons]],
+) -> tuple[list[PointRecord], list[bool], LayerParams]:
+    """Extend the given records partially through a z-stack, designate appropriately as central-plane or not; also set fail codes text."""
     max_z = max(r.get_z_coordinate() for r, _ in record_qc_pairs)
-    points: list["PointRecord"] = []
+    points: list[PointRecord] = []
     center_flags: list[bool] = []
     codes: list[QCFailReasons] = []
     for rec, qc in record_qc_pairs:
@@ -229,155 +191,24 @@ def parse_failed(  # noqa: D103
         "size": 0,  # Make the point invisible and just use text.
         "text": {
             "string": "{failCodes}",
-            "color": DEEP_SKY_BLUE,
+            "color": PointColor.DEEP_SKY_BLUE.value,
         },
         "properties": {"failCodes": codes},
     }
     return points, center_flags, params
 
 
-@doc(
-    summary="Parse single-point from a single record (e.g., row from a CSV file).",
-    parameters=dict(
-        r="Record (e.g. CSV row) to parse",
-        exp_num_fields=("The expected number of data fields (e.g., columns) in the record"),
-    ),
-    returns="""
-        A pair of values in which the first element represents a locus spot's trace ID and timepoint,
-        and the second element represents the (z, y, x) coordinates of the centroid of the spot fit.
-    """,
-)
-def parse_simple_record(r: CsvRow, *, exp_num_fields: int) -> "PointRecord":
-    """Parse a single line from an input CSV file."""
-    if not isinstance(r, list):
-        raise TypeError(f"Record to parse must be list, not {type(r).__name__}")
-    if len(r) != exp_num_fields:
-        raise ValueError(f"Expected record of length {exp_num_fields} but got {len(r)}: {r}")
-    trace = TraceId(int(r[InputFileColumn.TRACE.get]))
-    timepoint = Timepoint(int(r[InputFileColumn.TIMEPOINT.get]))
-    z = float(r[InputFileColumn.Z.get])
-    y = float(r[InputFileColumn.Y.get])
-    x = float(r[InputFileColumn.X.get])
-    point = ImagePoint3D(z=z, y=y, x=x)
-    return PointRecord(trace_id=trace, timepoint=timepoint, point=point)
-
-
-@doc(
-    summary="",
-    parameters=dict(
-        trace_id="ID of the trace with which the locus spot is associated",
-        timepoint="Imaging timepoint in from which the point is coming",
-        point="Coordinates of the centroid of the Gaussian fit to the spot image pixel data",
-    ),
-)
-@dataclasses.dataclass(frozen=True, kw_only=True)
-class PointRecord(LocatableXY, LocatableZ):  # noqa: D101
-    trace_id: TraceId
-    timepoint: Timepoint
-    point: ImagePoint3D
-
-    def __post_init__(self) -> None:
-        bads: dict[str, object] = {}
-        if not isinstance(self.trace_id, TraceId):
-            bads["trace ID"] = self.trace_id  # type: ignore[unreachable]
-        if not isinstance(self.timepoint, Timepoint):
-            bads["timepoint"] = self.timepoint  # type: ignore[unreachable]
-        if not isinstance(self.point, ImagePoint3D):
-            bads["point"] = self.point  # type: ignore[unreachable]
-        if bads:
-            messages = "; ".join(f"Bad type ({type(v).__name__}) for {k}" for k, v in bads.items())
-            raise TypeError(f"Cannot create point record: {messages}")
-
-    @doc(summary="Flatten")
-    def flatten(self) -> FlatPointRecord:
-        """Create a simple list of components, as a row of layer data."""
-        return [
-            self.trace_id.get,
-            self.timepoint.get,
-            self.get_z_coordinate(),
-            self.get_y_coordinate(),
-            self.get_x_coordinate(),
-        ]
-
-    def get_x_coordinate(self) -> float:  # noqa: D102
-        return self.point.x
-
-    def get_y_coordinate(self) -> float:  # noqa: D102
-        return self.point.y
-
-    def get_z_coordinate(self) -> ZCoordinate:  # noqa: D102
-        return self.point.z
-
-    @doc(summary="Round point position to nearest z-slice")
-    def with_truncated_z(self) -> "PointRecord":  # noqa: D102
-        new_z: int = floor(self.get_z_coordinate())
-        result: PointRecord = self.with_new_z(new_z)
-        return result
-
-    @doc(
-        summary="Replace this instance's point with a copy with updated z.",
-        parameters=dict(z="New z-coordinate value"),
+def _do_not_parse(*, path: PathLike, why: str, level: int = logging.DEBUG) -> None:
+    """Log a message about why a path can't be parsed."""
+    logging.log(
+        level,
+        "%s, cannot be read as looptrace locus-specific points: %s",
+        why,
+        path,
     )
-    def with_new_z(self, z: int) -> "PointRecord":  # noqa: D102
-        pt = ImagePoint3D(x=self.point.x, y=self.point.y, z=z)
-        return dataclasses.replace(self, point=pt)
 
 
-@doc(
-    summary="Create ancillary points from main point",
-    parameters=dict(
-        r="The record to expand along z-axis",
-        z_max="The maximum z-coordinate",
-    ),
-    returns="""
-        List of layer data rows to represent the original point along
-        entire length of z-axis, paired with flag for each row
-        indicating whether it's true center or not
-    """,
-)
-def expand_along_z(  # noqa: D103
-    r: PointRecord, *, z_max: Union[float, np.float64]
-) -> tuple[list[PointRecord], list[bool]]:
-    if not isinstance(z_max, int | float | np.float64):
-        raise TypeError(f"Bad type for z_max: {type(z_max).__name__}")
-
-    r = r.with_truncated_z()
-    z_center = int(r.get_z_coordinate())
-    z_max = int(floor(z_max))
-    if not isinstance(z_center, int) or not isinstance(z_max, int):
-        raise TypeError(
-            f"Z center and Z max must be int; got {type(z_center).__name__} and"
-            f" {type(z_max).__name__}"
-        )
-
-    # Check that max z and center z make sense together.
-    if z_max < z_center:
-        raise ValueError(f"Max z must be at least as great as central z ({z_center})")
-
-    # Build the records and flags of where the center in z really is.
-    predecessors = [(r.with_new_z(i), False) for i in range(z_center)]
-    successors = [(r.with_new_z(i), False) for i in range(z_center + 1, z_max + 1)]
-    points, params = zip(*[*predecessors, (r, True), *successors], strict=False)
-
-    # Each record should give rise to a total of 1 + z_max records, since numbering from 0.
-    if len(points) != 1 + z_max:
-        raise RuntimeError(
-            f"Number of points generated from single spot center isn't as expected! Point={r}, z_max={z_max}, len(points)={len(points)}"
-        )
-    return points, params  # type: ignore[return-value]
-
-
-class InputFileColumn(Enum):
-    """Indices of the different columns to parse as particular fields"""
-
-    TRACE = 0
-    TIMEPOINT = 1
-    Z = 2
-    Y = 3
-    X = 4
-    QC = 5
-
-    @property
-    def get(self) -> int:
-        """Alias for the value of this enum member"""
-        return self.value
+def _has_header(path: PathLike) -> bool:
+    with open(path) as fh:  # noqa: PTH123
+        header = fh.readline()
+    return HeadedTraceTimePointParser.TIME_INDEX_COLUMN in header

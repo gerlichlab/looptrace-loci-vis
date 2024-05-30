@@ -2,9 +2,8 @@
 
 from math import ceil
 
-import pytest
-
-from looptrace_loci_vis.reader import parse_failed
+from looptrace_loci_vis.points_parser import HeadlessTraceTimePointParser
+from looptrace_loci_vis.reader import records_to_qcfail_layer_data
 
 FAIL_LINES_SAMPLE = """0,13,5.880338307654485,12.20211975317036,10.728294496728491,S
 0,17,10.594366532607864,10.95875680073854,20.711938561802768,R;S;xy;z
@@ -19,9 +18,12 @@ FAIL_LINES_SAMPLE = """0,13,5.880338307654485,12.20211975317036,10.7282944967284
 """
 
 
-@pytest.mark.parametrize("keep_line_ends", [False, True])
-def test_failed_sample_line_count(keep_line_ends):
-    lines = FAIL_LINES_SAMPLE.splitlines(keepends=keep_line_ends)
+def test_failed_sample_line_count(tmp_path):
+    lines = FAIL_LINES_SAMPLE.splitlines(keepends=True)
+    data_file = tmp_path / "spots.qcfail.csv"
+    with data_file.open(mode="w") as fh:
+        for data_line in lines:
+            fh.write(data_line)
     exp_line_count = 10
     assert len(lines) == exp_line_count, f"Expected {exp_line_count} lines but got {len(lines)}"
     z_field = 2
@@ -29,7 +31,8 @@ def test_failed_sample_line_count(keep_line_ends):
     exp_z_ceil = 11
     assert obs_z_ceil == exp_z_ceil, f"Expected max Z of {exp_z_ceil} but got {obs_z_ceil}"
     exp_record_count = exp_z_ceil * exp_line_count
-    records, _, _ = parse_failed([l.split(",") for l in lines])  # noqa: E741
+    init_recs = HeadlessTraceTimePointParser.parse_all_qcfail(data_file)
+    records, _, _ = records_to_qcfail_layer_data(init_recs)
     assert (
         len(records) == exp_record_count
     ), f"Expected {exp_record_count} records but got {len(records)}"
