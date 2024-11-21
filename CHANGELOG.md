@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.2.2] - 2024-11-21
+
+### Changed
+* Update to newest version of `gertils` (v0.5.1).
+
 ## [v0.2.1] - 2024-11-21
 This is compatible with the 0.11.x line of `looptrace`.
 
