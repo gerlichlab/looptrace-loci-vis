@@ -53,12 +53,12 @@ looptrace-loci-vis = "looptrace_loci_vis:napari.yaml"
 [project.optional-dependencies]
 formatting = [
     "codespell >= 2.2.4",
-    "ruff >= 0.4.6",
+    "ruff >= 0.8.0",
 ]
 linting = [
     "mypy >= 1.0.1",
     "pandas-stubs",
-    "ruff >= 0.3",
+    "ruff >= 0.8.0",
 ]
 testsuite = [
     "npe2",
@@ -128,8 +128,8 @@ ignore = [
     # Imports and type annotations
     "ANN003",  # Missing type annotation for kwargs
     "FA100",  # Missing `from __future__ import annotations`, but uses `typing.*`
-    "TCH002",  # Move third-party import `...` into a type-checking block
-    "TCH003",  # Move standard library import `...` into a type-checking block
+    "TC002",  # Move third-party import `...` into a type-checking block
+    "TC003",  # Move standard library import `...` into a type-checking block
     "UP007",  # Use `X | Y` for type annotations
 
     # Ruff recommends avoiding these checks when using `ruff format`. Since
@@ -164,7 +164,6 @@ ignore = [
     # Ignore some groups of checks in our test code.
     "ANN",  # Type annotations
     "D10",  # Missing docstrings
-    "TCH00",  # Imports and type checking blocks
     "INP001", # File `...` is part of an implicit namespace package. Add an `__init__.py`.
 
     # Ignore some more specific checks in our test code.
