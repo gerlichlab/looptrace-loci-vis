@@ -6,11 +6,13 @@ contributions:
     python_name: looptrace_loci_vis.reader:get_reader
   readers:
   - command: looptrace-loci-vis.read_looptrace_locus_points
+    # Keeping filename_patterns for now since it causes a problem if absent, even when having no effect.
+    # See discussion: https://github.com/napari/npe2/issues/155
     filename_patterns:
     # - '*.qcfail.csv'
     # - '*.qcpass.csv'
     # - '*.qc_fail.csv'
     # - '*.qc_pass.csv'
-    #accepts_directories: false
       - 'P*'
+    #accepts_directories: false
     accepts_directories: true
