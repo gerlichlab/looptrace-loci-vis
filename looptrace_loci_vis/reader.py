@@ -56,10 +56,12 @@ class QCStatus(Enum):
     returns="A function to create layers from folder path, if folder path is parsable",
 )
 def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103
-    if not isinstance(path, str | Path):
-        return _do_not_parse(path, why=f"Not a str or Path, but {type(path).__name__}")
-    if not os.path.isdir(path):  # noqa: PTH112
-        return _do_not_parse(path=path, why="Not a folder/directory")
+    if isinstance(path, str):
+        path: Path = Path(path)  # type: ignore[no-redef]
+    if not isinstance(path, Path):
+        return _do_not_parse(path=path, why=f"Not a str or Path, but {type(path).__name__}")  # type: ignore[arg-type, func-returns-value, no-any-return]
+    if not path.is_dir():
+        return _do_not_parse(path=path, why="Not a folder/directory")  # type: ignore[func-returns-value, no-any-return]
 
     keyed_paths: dict[str, list[Path]] = {}
     for name in os.listdir(path):
@@ -81,19 +83,19 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103
     match list(keyed_paths.items()):
         case [(key, files)]:
             if path.name != key:
-                return _do_not_parse(
+                return _do_not_parse(  # type: ignore[func-returns-value, no-any-return]
                     path=path,
                     why=f"Key ({key}) derived from folder contents doesn't match path name ({path.name})",
                 )
             if len(files) != 3:  # noqa: PLR2004
-                return _do_not_parse(
+                return _do_not_parse(  # type: ignore[func-returns-value, no-any-return]
                     path=path,
                     why=f"Not exactly 3 files, but rather {len(files)}, found for key '{key}'",
                 )
 
             path_by_status = dict(
                 choose(
-                    lambda fp: Option.of_optional(QCStatus.from_csv_path(fp)).map(
+                    lambda fp: Option.of_optional(QCStatus.from_csv_path(fp)).map(  # type: ignore[arg-type]
                         lambda status: (status, fp)
                     )
                 )(files)
@@ -102,7 +104,7 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103
                 fail_path = path_by_status.pop(QCStatus.FAIL)
                 pass_path = path_by_status.pop(QCStatus.PASS)
             except KeyError:
-                return _do_not_parse(
+                return _do_not_parse(  # type: ignore[func-returns-value, no-any-return]
                     path=path,
                     why=f"Could not find 1 each of QC status (pass/fail); path by status: {path_by_status}",
                 )
@@ -117,7 +119,7 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103
                 )
             potential_zarr: Path = left_to_match[0]
             if potential_zarr.suffix != ".zarr" or potential_zarr.name.removesuffix(".zarr") != key:
-                return _do_not_parse(path=path, why=f"Could not find ZARR for key '{key}'")
+                return _do_not_parse(path=path, why=f"Could not find ZARR for key '{key}'")  # type: ignore[func-returns-value, no-any-return]
 
             def parse(_):  # type: ignore[no-untyped-def] # noqa: ANN202 ANN001
                 image_layer: ImageLayer = (read_zarr(potential_zarr), {}, "image")
@@ -128,7 +130,7 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103
             return parse
 
         case _:
-            return _do_not_parse(
+            return _do_not_parse(  # type: ignore[func-returns-value, no-any-return]
                 path=path,
                 why=f"Not exactly 1 key, but rather {len(keyed_paths)} keys, were found: {', '.join(keyed_paths.keys())}",
             )
