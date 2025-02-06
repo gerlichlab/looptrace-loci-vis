@@ -6,8 +6,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
-from gertils.pathtools import find_multiple_paths_by_fov, get_fov_sort_key
-from gertils.types import FieldOfViewFrom1
+from expression import Option
+from expression.collections.seq import choose
 from gertils.zarr_tools import read_zarr
 from numpydoc_decorator import doc  # type: ignore[import-untyped]
 
@@ -57,57 +57,81 @@ class QCStatus(Enum):
 )
 def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103
     if not isinstance(path, str | Path):
-        return None
+        return _do_not_parse(path, why=f"Not a str or Path, but {type(path).__name__}")
     if not os.path.isdir(path):  # noqa: PTH112
-        _do_not_parse(path=path, why="Not a folder/directory")
-        return None
-    path_by_fov: dict[FieldOfViewFrom1, list[Path]] = find_multiple_paths_by_fov(
-        path, extensions=(".zarr", *(qc.filename_extension for qc in QCStatus))
-    )
-    if len(path_by_fov) != 1:
-        _do_not_parse(
-            path=path, why=f"Not exactly 1 FOV found, but rather {len(path_by_fov)}, found"
-        )
-        return None
-    fov, files = next(iter(path_by_fov.items()))
-    if len(files) != 3:  # noqa: PLR2004
-        _do_not_parse(
-            path=path, why=f"Not exactly 3 files, but rather {len(files)}, found for {fov}"
-        )
-        return None
-    path_by_status = {}
-    for fp in files:
-        qc = QCStatus.from_csv_path(fp)
-        if qc is not None:
-            path_by_status[qc] = fp
-    try:
-        fail_path = path_by_status.pop(QCStatus.FAIL)
-        pass_path = path_by_status.pop(QCStatus.PASS)
-    except KeyError:
-        _do_not_parse(path=path, why="Could not find 1 each of QC status (pass/fail)")
-        return None
-    if len(path_by_status) != 0:
-        raise RuntimeError(f"Extra QC status/path pairs! {path_by_status}")
-    left_to_match = [f for f in files if f not in [fail_path, pass_path]]
-    if len(left_to_match) != 1:
-        raise RuntimeError(
-            f"Nonsense! After finding 2 QC files among 3 files of interest, only 1 should remain but got {len(left_to_match)}: {left_to_match}"
-        )
-    potential_zarr = left_to_match[0]
-    if (
-        potential_zarr.suffix != ".zarr"
-        or get_fov_sort_key(potential_zarr, extension=".zarr") != fov
-    ):
-        _do_not_parse(path=path, why=f"Could not find ZARR for FOV {fov}")
-        return None
+        return _do_not_parse(path=path, why="Not a folder/directory")
 
-    def parse(_):  # type: ignore[no-untyped-def] # noqa: ANN202 ANN001
-        image_layer: ImageLayer = (read_zarr(potential_zarr), {}, "image")
-        failures_layer: PointsLayer = build_single_file_points_layer(fail_path)
-        successes_layer: PointsLayer = build_single_file_points_layer(pass_path)
-        return [image_layer, failures_layer, successes_layer]
+    keyed_paths: dict[str, list[Path]] = {}
+    for name in os.listdir(path):
+        curr_path: Path = path / name
+        message: Optional[str] = None
+        for suffix in (".zarr", *(qc.filename_extension for qc in QCStatus)):
+            if not name.endswith(suffix):
+                continue
+            key: str = name.removesuffix(suffix)
+            if suffix == ".zarr" and curr_path.is_dir():
+                message = f"Accepting ZARR data folder ({key}): {curr_path}"
+            elif curr_path.is_file():
+                message = f"Accepting data file ({key}): {curr_path}"
+            if message is None:
+                raise RuntimeError(f"Unexpected path! {curr_path}")
+            logging.debug(message)
+            keyed_paths.setdefault(key, []).append(curr_path)
 
-    return parse
+    match list(keyed_paths.items()):
+        case [(key, files)]:
+            if path.name != key:
+                return _do_not_parse(
+                    path=path,
+                    why=f"Key ({key}) derived from folder contents doesn't match path name ({path.name})",
+                )
+            if len(files) != 3:  # noqa: PLR2004
+                return _do_not_parse(
+                    path=path,
+                    why=f"Not exactly 3 files, but rather {len(files)}, found for key '{key}'",
+                )
+
+            path_by_status = dict(
+                choose(
+                    lambda fp: Option.of_optional(QCStatus.from_csv_path(fp)).map(
+                        lambda status: (status, fp)
+                    )
+                )(files)
+            )
+            try:
+                fail_path = path_by_status.pop(QCStatus.FAIL)
+                pass_path = path_by_status.pop(QCStatus.PASS)
+            except KeyError:
+                return _do_not_parse(
+                    path=path,
+                    why=f"Could not find 1 each of QC status (pass/fail); path by status: {path_by_status}",
+                )
+            if len(path_by_status) != 0:  # after popping out the required key-value pairs
+                raise RuntimeError(f"Extra QC status/path pairs! {path_by_status}")
+            left_to_match = [f for f in files if f not in [fail_path, pass_path]]
+            if (
+                len(left_to_match) != 1
+            ):  # Now there should be exactly the single .zarr path remaining.
+                raise RuntimeError(
+                    f"Nonsense! After finding 2 QC files among 3 files of interest, only 1 should remain but got {len(left_to_match)}: {left_to_match}"
+                )
+            potential_zarr: Path = left_to_match[0]
+            if potential_zarr.suffix != ".zarr" or potential_zarr.name.removesuffix(".zarr") != key:
+                return _do_not_parse(path=path, why=f"Could not find ZARR for key '{key}'")
+
+            def parse(_):  # type: ignore[no-untyped-def] # noqa: ANN202 ANN001
+                image_layer: ImageLayer = (read_zarr(potential_zarr), {}, "image")
+                failures_layer: PointsLayer = build_single_file_points_layer(fail_path)
+                successes_layer: PointsLayer = build_single_file_points_layer(pass_path)
+                return [image_layer, failures_layer, successes_layer]
+
+            return parse
+
+        case _:
+            return _do_not_parse(
+                path=path,
+                why=f"Not exactly 1 key, but rather {len(keyed_paths)} keys, were found: {', '.join(keyed_paths.keys())}",
+            )
 
 
 def build_single_file_points_layer(path: PathLike) -> PointsLayer:
