@@ -22,7 +22,7 @@ from ._types import (
     Reader,
 )
 from .point_record import PointRecord, expand_along_z
-from .points_parser import HeadedTraceTimePointParser, HeadlessTraceTimePointParser, PointsParser
+from .points_parser import HeadedTraceTimePointParser, PointsParser
 
 
 class QCStatus(Enum):
@@ -153,8 +153,7 @@ def build_single_file_points_layer(path: PathLike) -> PointsLayer:
         logging.debug("Will parse has having header: %s", path)
         parser = HeadedTraceTimePointParser
     else:
-        logging.debug("Will parse as headless: %s", path)
-        parser = HeadlessTraceTimePointParser
+        raise NotImplementedError("Parsing headerless CSV is no longer supported (v0.3.0).")
     # Then, determine the functions to used based on inferred QC status.
     if qc == QCStatus.PASS:
         logging.debug("Will parse sas QC-pass: %s", path)

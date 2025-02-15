@@ -14,9 +14,10 @@ from ._types import FlatPointRecord
 
 
 @doc(
-    summary="",
+    summary="Representation of a subpixel localization contextualized by 'placement' within imaging experiment",
     parameters=dict(
         trace_id="ID of the trace with which the locus spot is associated",
+        region_time="Regional barcode imaging timepoint",
         timepoint="Imaging timepoint in from which the point is coming",
         point="Coordinates of the centroid of the Gaussian fit to the spot image pixel data",
     ),
@@ -24,6 +25,7 @@ from ._types import FlatPointRecord
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class PointRecord(LocatableXY, LocatableZ):  # noqa: D101
     trace_id: TraceId
+    region_time: Timepoint
     timepoint: Timepoint
     point: ImagePoint3D
 
@@ -31,8 +33,10 @@ class PointRecord(LocatableXY, LocatableZ):  # noqa: D101
         bads: dict[str, object] = {}
         if not isinstance(self.trace_id, TraceId):
             bads["trace ID"] = self.trace_id  # type: ignore[unreachable]
+        if not isinstance(self.region_time, Timepoint):
+            bads["region index"] = self.region_time  # type: ignore[unreachable]
         if not isinstance(self.timepoint, Timepoint):
-            bads["timepoint"] = self.timepoint  # type: ignore[unreachable]
+            bads["time index"] = self.timepoint  # type: ignore[unreachable]
         if not isinstance(self.point, ImagePoint3D):
             bads["point"] = self.point  # type: ignore[unreachable]
         if bads:
@@ -44,6 +48,7 @@ class PointRecord(LocatableXY, LocatableZ):  # noqa: D101
         """Create a simple list of components, as a row of layer data."""
         return [
             self.trace_id.get,
+            self.region_time.get,
             self.timepoint.get,
             self.get_z_coordinate(),
             self.get_y_coordinate(),
