@@ -19,7 +19,7 @@ For the image layer, you'll want to select "continuous" rather than "once" for t
 For each new unit/collection of data to view, you'll need to clear the layers from the active Napari window, then drag in the next folder.
 
 ### What you should see / notice
-* __Sliders__: A Napari window with three sliders (trace ID on bottom, timepoint in middle, $z$ slice on top) should be displayed. 
+* __Sliders__: A Napari window with four sliders (trace ID on bottom, regional barcode index above that, timepoint index in above that, $z$ slice on top) should be displayed. 
 * __Colors__: Yellow indicates a locus spot that passed all QC filters, and blue indicates that the spot failed at least one QC filter. 
 * __Sizes and Shapes__: A larger star indicates that you're viewing the $z$-slice corresponding to the truncation-toward-0 of the $z$-coordinate of the centroid of the Gaussian fit to the locus spot pixels. A smaller point/circle is shown when you're in a non-central $z$-slice. Text is shown for QC-fail points
 * __Text__: Text labels encode [QC failure reasons](#qc-failure-codes).

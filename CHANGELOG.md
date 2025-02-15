@@ -4,10 +4,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [v0.3.0] - 2025-02-06
+## [v0.3.0] - 2025-02-15
+
+### Added
+* Support reading data from ROIs merged into tracing groups.
 
 ### Changed
 * Relaxed the rules around the naming conventions/expectations for input data: namely, now the ZARR and CSV inputs need not have a name which corresponds exactly to the encoding of a one-based field of view count
+* Removed support for parsing CSVs with no header.
+* A new slider is now present, for regional barcode imaging timepoint (to support ROI merger into tracing groups).
 
 ## [v0.2.3] - 2024-11-27
 
