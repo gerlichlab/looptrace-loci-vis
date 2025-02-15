@@ -1,9 +1,7 @@
 """Abstractions related to points parsing"""
 
 import abc
-import csv
 from collections.abc import Iterable, Sized
-from enum import Enum
 from typing import Generic, Protocol, TypeVar
 
 import pandas as pd
@@ -11,7 +9,7 @@ from gertils.geometry import ImagePoint3D
 from gertils.types import TimepointFrom0 as Timepoint
 from gertils.types import TraceIdFrom0 as TraceId
 
-from ._types import CsvRow, PathLike, QCFailReasons
+from ._types import PathLike, QCFailReasons
 from .point_record import PointRecord
 
 Input = TypeVar("Input", contravariant=True)
@@ -66,6 +64,7 @@ class IterativePointsParser(Generic[I1, I2], PointsParser[I1]):
 class HeadedTraceTimePointParser(IterativePointsParser[PathLike, MappingLike]):
     """Something capable of parsing a headed CSV of QC-pass/-fail points records"""
 
+    REGION_INDEX_COLUMN = "regionIndex"
     TIME_INDEX_COLUMN = "timeIndex"
 
     @classmethod
@@ -76,12 +75,15 @@ class HeadedTraceTimePointParser(IterativePointsParser[PathLike, MappingLike]):
     @classmethod
     def _parse_single_qcpass_record(cls, record: MappingLike) -> PointRecord:
         trace = TraceId(int(record["traceIndex"]))  # type: ignore[call-overload]
+        region_time = Timepoint(int(record[cls.REGION_INDEX_COLUMN]))  # type: ignore[call-overload]
         timepoint = Timepoint(int(record[cls.TIME_INDEX_COLUMN]))  # type: ignore[call-overload]
         z = float(record["z"])  # type: ignore[arg-type]
         y = float(record["y"])  # type: ignore[arg-type]
         x = float(record["x"])  # type: ignore[arg-type]
         point = ImagePoint3D(z=z, y=y, x=x)
-        return PointRecord(trace_id=trace, timepoint=timepoint, point=point)
+        return PointRecord(
+            trace_id=trace, region_time=region_time, timepoint=timepoint, point=point
+        )
 
     @classmethod
     def _parse_single_qcfail_record(cls, record: MappingLike) -> tuple[PointRecord, QCFailReasons]:
@@ -91,54 +93,4 @@ class HeadedTraceTimePointParser(IterativePointsParser[PathLike, MappingLike]):
         if not isinstance(fail_code, str):
             raise TypeError(f"failCode is not str, but {type(fail_code).__name__}")
         fail_code: str = str(fail_code)  # type: ignore[no-redef]
-        return pt_rec, fail_code
-
-
-class HeadlessTraceTimePointParser(IterativePointsParser[PathLike, CsvRow]):
-    """Parser for input file with no header, and field for trace ID and timepoint in addition to coordinates"""
-
-    class InputFileColumn(Enum):
-        """Indices of the different columns to parse as particular fields"""
-
-        TRACE = 0
-        TIMEPOINT = 1
-        Z = 2
-        Y = 3
-        X = 4
-        QC = 5
-
-        @property
-        def get(self) -> int:
-            """Alias for the value of this enum member"""
-            return self.value
-
-    _number_of_columns = sum(1 for _ in InputFileColumn)
-
-    @classmethod
-    def _parse_single_record(cls, r: CsvRow, *, exp_len: int) -> PointRecord:
-        if not isinstance(r, list):
-            raise TypeError(f"Record to parse must be list, not {type(r).__name__}")
-        if len(r) != exp_len:
-            raise ValueError(f"Expected record of length {exp_len} but got {len(r)}: {r}")
-        trace = TraceId(int(r[cls.InputFileColumn.TRACE.get]))
-        timepoint = Timepoint(int(r[cls.InputFileColumn.TIMEPOINT.get]))
-        z = float(r[cls.InputFileColumn.Z.get])
-        y = float(r[cls.InputFileColumn.Y.get])
-        x = float(r[cls.InputFileColumn.X.get])
-        point = ImagePoint3D(z=z, y=y, x=x)
-        return PointRecord(trace_id=trace, timepoint=timepoint, point=point)
-
-    @classmethod
-    def _gen_records(cls, data: PathLike) -> Iterable[CsvRow]:
-        with open(data, newline="") as fh:  # noqa: PTH123
-            return list(csv.reader(fh))
-
-    @classmethod
-    def _parse_single_qcpass_record(cls, record: CsvRow) -> PointRecord:
-        return cls._parse_single_record(record, exp_len=cls._number_of_columns - 1)
-
-    @classmethod
-    def _parse_single_qcfail_record(cls, record: CsvRow) -> tuple[PointRecord, QCFailReasons]:
-        pt_rec = cls._parse_single_record(record, exp_len=cls._number_of_columns)
-        fail_code = record[cls.InputFileColumn.QC.get]
         return pt_rec, fail_code
