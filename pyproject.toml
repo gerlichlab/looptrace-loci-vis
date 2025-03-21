@@ -23,7 +23,7 @@ classifiers = [
 ]
 dependencies = [
     "expression >= 5.0.2",
-    "gertils @ git+https://github.com/gerlichlab/gertils.git@v0.5.1",
+    "gertils @ git+https://github.com/gerlichlab/gertils.git@v0.6.0",
     "napari >= 0.4.19; sys_platform == 'darwin'",
     "napari[all] >= 0.4.19; sys_platform != 'darwin'",
     "numpy",
