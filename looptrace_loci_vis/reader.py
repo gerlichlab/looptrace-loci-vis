@@ -64,13 +64,12 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103
         return _do_not_parse(path=path, why="Not a folder/directory")  # type: ignore[func-returns-value, no-any-return]
 
     keyed_paths: dict[str, list[Path]] = {}
-    for name in os.listdir(path):
-        curr_path: Path = path / name
+    for curr_path in path.iterdir():
         message: Optional[str] = None
         for suffix in (".zarr", *(qc.filename_extension for qc in QCStatus)):
-            if not name.endswith(suffix):
+            if not curr_path.name.endswith(suffix):
                 continue
-            key: str = name.removesuffix(suffix)
+            key: str = curr_path.name.removesuffix(suffix)
             if suffix == ".zarr" and curr_path.is_dir():
                 message = f"Accepting ZARR data folder ({key}): {curr_path}"
             elif curr_path.is_file():

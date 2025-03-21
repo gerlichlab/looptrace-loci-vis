@@ -98,8 +98,8 @@ def expand_along_z(  # noqa: D103
         raise TypeError(f"Bad type for z_max: {type(z_max).__name__}")
 
     r = r.with_truncated_z()
-    z_center = int(r.get_z_coordinate())
-    z_max = int(floor(z_max))
+    z_center: int = int(r.get_z_coordinate())
+    z_max: int = floor(z_max)  # type: ignore[no-redef]
     if not isinstance(z_center, int) or not isinstance(z_max, int):
         raise TypeError(
             f"Z center and Z max must be int; got {type(z_center).__name__} and"
