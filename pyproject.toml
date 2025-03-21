@@ -158,6 +158,7 @@ ignore = [
     "TD002",  # missing author in TODO
     "C901", # function too complex
     "PLR0911", # too many return statements
+    "LOG015", # Use own logger instead
 ]
 
 [tool.ruff.lint.per-file-ignores]
