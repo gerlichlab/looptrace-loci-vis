@@ -54,12 +54,12 @@ looptrace-loci-vis = "looptrace_loci_vis:napari.yaml"
 [project.optional-dependencies]
 formatting = [
     "codespell >= 2.2.4",
-    "ruff >= 0.8.0",
+    "ruff >= 0.11.2",
 ]
 linting = [
     "mypy >= 1.0.1",
     "pandas-stubs",
-    "ruff >= 0.8.0",
+    "ruff >= 0.11.2",
 ]
 testsuite = [
     "npe2",
