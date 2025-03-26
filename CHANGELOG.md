@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.3.2] - 2025-03-26
+
+### Changed
+* Bump `ruff` back to v0.8.0, and pin the dependency there, since that's the [last `ruff` version before the updating metadata info version](https://github.com/astral-sh/ruff/issues/14681), which requires at least version 1.8.5 of Poetry.
+
 ## [v0.3.1] - 2025-03-21
 
 ### Changed
