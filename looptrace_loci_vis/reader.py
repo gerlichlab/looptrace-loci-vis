@@ -55,7 +55,7 @@ class QCStatus(Enum):
     raises=dict(RuntimeError="If collection of QC statuses inferred from files doesn't make sense"),
     returns="A function to create layers from folder path, if folder path is parsable",
 )
-def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103
+def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0911, PLR0912
     if isinstance(path, str):
         path: Path = Path(path)  # type: ignore[no-redef]
     if not isinstance(path, Path):

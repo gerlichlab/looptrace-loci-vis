@@ -12,7 +12,7 @@ from gertils.types import TraceIdFrom0 as TraceId
 from ._types import PathLike, QCFailReasons
 from .point_record import PointRecord
 
-Input = TypeVar("Input", contravariant=True)
+Input = TypeVar("Input", contravariant=True)  # noqa: PLC0105
 I1 = TypeVar("I1")
 I2 = TypeVar("I2", bound=Sized)
 

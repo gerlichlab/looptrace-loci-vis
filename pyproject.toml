@@ -1,86 +1,87 @@
-[project]
+[tool.poetry]
 name = "looptrace-loci-vis"
-dynamic = ["version"]
-requires-python = ">= 3.10, < 3.13"
-authors = [
-    {name = "Vince Reuter"}
-]
+version = "0.3.4"
 description = "This project facilitates viewing, in `napari`, locus-specific spots from `looptrace`."
+authors = ["Vince Reuter"]
+license = "MIT"
 readme = "README.md"
-license = {file = "LICENSE"}
+repository = "https://github.com/gerlichlab/looptrace-loci-vis.git"
 keywords = ["visualisation", "bioinformatics", "chromatin", "napari", "FISH"]
 classifiers = [
-    "Development Status :: 1 - Planning",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: POSIX :: Linux",
-    "Operating System :: MacOS",
-    "Operating System :: Microsoft :: Windows",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Topic :: Scientific/Engineering :: Bio-Informatics",
-    "Typing :: Typed",
-]
-dependencies = [
-    "expression >= 5.0.2",
-    "gertils @ git+https://github.com/gerlichlab/gertils.git@v0.6.0",
-    "napari >= 0.4.19; sys_platform == 'darwin'",
-    "napari[all] >= 0.4.19; sys_platform != 'darwin'",
-    "numpy",
-    "numpydoc_decorator >= 2.2.1",
-    "pandas",
-    "pyqt6 >= 6.5.0; sys_platform == 'darwin'",
-    "zarr >= 2.4.12",
+  "Development Status :: 1 - Planning",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Bio-Informatics",
+  "Typing :: Typed",
 ]
 
 [build-system]
-requires = ["setuptools", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
 
-[project.urls]
-Homepage = "https://github.com/gerlichlab/looptrace-loci-vis"
-Repository = "https://github.com/gerlichlab/looptrace-loci-vis.git"
-Issues = "https://github.com/gerlichlab/looptrace-loci-vis/issues"
-
-[tool.setuptools.dynamic]
-version = { attr = "looptrace_loci_vis.__version__" }
-
-[tool.setuptools.package-data]
-looptrace_loci_vis = [ "napari.yaml", "examples/*.csv" ]
-
-[project.entry-points."napari.manifest"]
+[tool.poetry.plugins."napari.manifest"]
 looptrace-loci-vis = "looptrace_loci_vis:napari.yaml"
 
-[project.optional-dependencies]
-formatting = [
-    "codespell >= 2.2.4",
-    "ruff == 0.7.4", # https://github.com/astral-sh/ruff/issues/14681
-]
-linting = [
-    "mypy >= 1.0.1",
-    "pandas-stubs",
-    "ruff == 0.7.4", # https://github.com/astral-sh/ruff/issues/14681
-]
-testsuite = [
-    "npe2",
-    "pytest >= 7.1.0",
-    "pytest-cov >= 5.0.0",
-    "typer",
-]
+[tool.poetry.dependencies]
+python = ">=3.10,<3.13"
+expression = ">=5.0.2"
+gertils = { git = "https://github.com/gerlichlab/gertils.git", tag = "v0.6.0" }
+numpy = "*"
+numpydoc_decorator = ">=2.2.1"
+pandas = "*"
+zarr = ">=2.4.12"
+
+# OS-specific dependency declarations
+napari = { version = "==0.4.19.post1", markers = "sys_platform == 'darwin'" }
+pyqt6 = { version = ">=6.5.0", markers = "sys_platform == 'darwin'" }
+
+[tool.poetry.group.dev]
+optional = true
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.2.0"
+
+[tool.poetry.group.formatting]
+optional = true
+
+[tool.poetry.group.formatting.dependencies]
+codespell = ">=2.2.4"
+ruff = "==0.7.4"  # https://github.com/astral-sh/ruff/issues/14681
+
+[tool.poetry.group.linting]
+optional = true
+
+[tool.poetry.group.linting.dependencies]
+mypy = ">=1.0.1"
+pandas-stubs = "*"
+ruff = "==0.7.4"  # https://github.com/astral-sh/ruff/issues/14681
+
+[tool.poetry.group.testsuite.dependencies]
+npe2 = "*"
+pytest = ">=7.1.0"
+pytest-cov = ">=5.0.0"
+typer = "*"
 
 [tool.codespell]
-skip = ".git,.mypy_cache,.nox,.vscode,__pycache__,poetry.lock"
+skip = ".git,.mypy_cache,.nox,.vscode,__pycache__,pyproject.toml,poetry.lock"
 builtin = "clear,rare,informal,usage,code,names"
-ignore-words-list = "jupyter,iff"
+ignore-words-list = "jupyter,iff"  # prevent jupyter -> jupiter, iff -> if
 check-filenames = true
-uri-ignore-words-list = "*"
+uri-ignore-words-list = "*" # prevent spelling correction in URL-like values.
 
 [tool.mypy]
-files = ['looptrace_loci_vis/*.py']
+files = ['looptrace_loci_vis/*.py', 'tests/*.py']
+plugins = ["pydantic.mypy"]
 warn_redundant_casts = true
 warn_unused_ignores = true
 warn_return_any = true
 warn_unreachable = true
+enable_error_code = ["ignore-without-code"]
 
 [[tool.mypy.overrides]]
 module = "looptrace_loci_vis.*"
@@ -95,14 +96,18 @@ disallow_subclassing_any = true
 implicit_optional = false
 strict_optional = true
 
-[tool.pytest.ini_options]
-addopts = "-vv --cov looptrace_loci_vis --cov-report term-missing"
-
 [tool.ruff]
 # Black uses line-length = 88, but allows exceptions when breaking the line
 # would lead to other rule violations. Use 100 as a maximum hard limit:
 line-length = 100
 target-version = "py310"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = [
+    "INP001", # part of an implicit namespace package
+    "D103", # Missing docstring in public function
+    "ANN201", # Missing return type annotation for public function
+]
 
 [tool.ruff.lint]
 select = ["ALL"]
@@ -115,6 +120,7 @@ ignore = [
     # Opinionated syntax
     "D203", # Ignore this to instead opt for class body or docstring to possibly start right away under class.
     "D213", # Ignore this to instead opt for summary part of docstring to be on first physical line.
+    "D401", # First line of docstring should be in imperative mood
     "TRY003", # Avoid specifying long messages outside the exception class
     "C408",  # Unnecessary `dict` call (rewrite as a literal)
     "EM",  # Exception must not use a (f-)string literal, assign to variable first
@@ -122,12 +128,8 @@ ignore = [
     "D400",  # First line should end with a period
     "D415",  # First line should end with a period, question mark, or exclamation point
     "N818",  # Exception should be named with an Error suffix
-    "PLR0913", # Too many arguments in function definition
-    "D401", # First line of docstring should be in imperative mood
-    "PLC0105", # This suggests suffixing a type variable with variance type (e.g., co/contra)
 
     # Imports and type annotations
-    "ANN003",  # Missing type annotation for kwargs
     "FA100",  # Missing `from __future__ import annotations`, but uses `typing.*`
     "TCH002",  # Move third-party import `...` into a type-checking block
     "TCH003",  # Move standard library import `...` into a type-checking block
@@ -152,25 +154,5 @@ ignore = [
     "ISC001",  # single-line-implicit-string-concatenation
     "ISC002",  # multi-line-implicit-string-concatenation
     "E501",  # line-too-long
-
-    # Other
-    "PLR0912",  # too many branches (of a conditional)
-    "TD002",  # missing author in TODO
-    "C901", # function too complex
-    "PLR0911", # too many return statements
-    "LOG015", # Use own logger instead
-]
-
-[tool.ruff.lint.per-file-ignores]
-"tests/*" = [
-    # Ignore some groups of checks in our test code.
-    "ANN",  # Type annotations
-    "D10",  # Missing docstrings
-    "INP001", # File `...` is part of an implicit namespace package. Add an `__init__.py`.
-
-    # Ignore some more specific checks in our test code.
-    "D401",  # First line of docstring should be in imperative mood
-    "N802",  # Function name `...` should be lowercase
-    "S101",  # Use of `assert` detected
 ]
 
