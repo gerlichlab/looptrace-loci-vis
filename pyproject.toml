@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "looptrace-loci-vis"
-version = "0.3.4"
+version = "0.3.5"
 description = "This project facilitates viewing, in `napari`, locus-specific spots from `looptrace`."
 authors = ["Vince Reuter"]
 license = "MIT"
@@ -30,7 +30,7 @@ looptrace-loci-vis = "looptrace_loci_vis:napari.yaml"
 [tool.poetry.dependencies]
 python = ">=3.10,<3.13"
 expression = ">=5.0.2"
-gertils = { git = "https://github.com/gerlichlab/gertils.git", tag = "v0.6.0" }
+gertils = { git = "https://github.com/gerlichlab/gertils.git", tag = "v0.6.1" }
 numpy = "*"
 numpydoc_decorator = ">=2.2.1"
 pandas = "*"

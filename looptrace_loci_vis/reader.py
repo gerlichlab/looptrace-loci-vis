@@ -187,7 +187,7 @@ def records_to_qcpass_layer_data(
     records: list[PointRecord],
 ) -> tuple[list[PointRecord], list[bool], LayerParams]:
     """Extend the given records partially through a z-stack, designate appropriately as central-plane or not."""
-    max_z = max(r.get_z_coordinate() for r in records)
+    max_z = max(r.point.z for r in records)
     points: list[PointRecord] = []
     center_flags: list[bool] = []
     for rec in records:
@@ -202,7 +202,7 @@ def records_to_qcfail_layer_data(
     record_qc_pairs: list[tuple[PointRecord, QCFailReasons]],
 ) -> tuple[list[PointRecord], list[bool], LayerParams]:
     """Extend the given records partially through a z-stack, designate appropriately as central-plane or not; also set fail codes text."""
-    max_z = max(r.get_z_coordinate() for r, _ in record_qc_pairs)
+    max_z = max(r.point.z for r, _ in record_qc_pairs)
     points: list[PointRecord] = []
     center_flags: list[bool] = []
     codes: list[QCFailReasons] = []

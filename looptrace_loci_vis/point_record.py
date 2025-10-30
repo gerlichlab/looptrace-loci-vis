@@ -5,7 +5,7 @@ from math import floor
 from typing import Union
 
 import numpy as np
-from gertils.geometry import ImagePoint3D, LocatableXY, LocatableZ, ZCoordinate
+from gertils.geometry import ImagePoint3D
 from gertils.types import TimepointFrom0 as Timepoint
 from gertils.types import TraceIdFrom0 as TraceId
 from numpydoc_decorator import doc  # type: ignore[import-untyped]
@@ -23,7 +23,7 @@ from ._types import FlatPointRecord
     ),
 )
 @dataclasses.dataclass(frozen=True, kw_only=True)
-class PointRecord(LocatableXY, LocatableZ):  # noqa: D101
+class PointRecord:  # noqa: D101
     trace_id: TraceId
     region_time: Timepoint
     timepoint: Timepoint
@@ -50,23 +50,14 @@ class PointRecord(LocatableXY, LocatableZ):  # noqa: D101
             self.trace_id.get,
             self.region_time.get,
             self.timepoint.get,
-            self.get_z_coordinate(),
-            self.get_y_coordinate(),
-            self.get_x_coordinate(),
+            self.point.z,
+            self.point.y,
+            self.point.x,
         ]
-
-    def get_x_coordinate(self) -> float:  # noqa: D102
-        return self.point.x
-
-    def get_y_coordinate(self) -> float:  # noqa: D102
-        return self.point.y
-
-    def get_z_coordinate(self) -> ZCoordinate:  # noqa: D102
-        return self.point.z
 
     @doc(summary="Round point position to nearest z-slice")
     def with_truncated_z(self) -> "PointRecord":  # noqa: D102
-        new_z: int = floor(self.get_z_coordinate())
+        new_z: int = floor(self.point.z)
         result: PointRecord = self.with_new_z(new_z)
         return result
 
@@ -98,7 +89,7 @@ def expand_along_z(  # noqa: D103
         raise TypeError(f"Bad type for z_max: {type(z_max).__name__}")
 
     r = r.with_truncated_z()
-    z_center: int = int(r.get_z_coordinate())
+    z_center: int = int(r.point.z)
     z_max: int = floor(z_max)  # type: ignore[no-redef]
     if not isinstance(z_center, int) or not isinstance(z_max, int):
         raise TypeError(
