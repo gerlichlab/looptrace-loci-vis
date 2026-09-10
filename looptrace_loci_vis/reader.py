@@ -11,7 +11,11 @@ from expression.collections.seq import choose
 from gertils.zarr_tools import read_zarr
 from numpydoc_decorator import doc  # type: ignore[import-untyped]
 
-from ._const import PointColor
+from ._const import (
+    LOCUS_SPOT_QC_FILTERING_BLOCK_SUFFIX,
+    LOCUS_SPOT_VISUALISATION_BLOCK_SUFFIX,
+    PointColor,
+)
 from ._types import (
     ImageLayer,
     LayerParams,
@@ -63,21 +67,16 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0
     if not path.is_dir():
         return _do_not_parse(path=path, why="Not a folder/directory")  # type: ignore[func-returns-value, no-any-return]
 
-    keyed_paths: dict[str, list[Path]] = {}
-    for curr_path in path.iterdir():
-        message: Optional[str] = None
-        for suffix in (".zarr", *(qc.filename_extension for qc in QCStatus)):
-            if not curr_path.name.endswith(suffix):
-                continue
-            key: str = curr_path.name.removesuffix(suffix)
-            if suffix == ".zarr" and curr_path.is_dir():
-                message = f"Accepting ZARR data folder ({key}): {curr_path}"
-            elif curr_path.is_file():
-                message = f"Accepting data file ({key}): {curr_path}"
-            if message is None:
-                raise RuntimeError(f"Unexpected path! {curr_path}")
-            logging.debug(message)
-            keyed_paths.setdefault(key, []).append(curr_path)
+    keyed_paths: dict[str, list[Path]] = _collect_keyed_paths(path)
+    # A folder in looptrace's locus spot visualisation block holds only the ZARR;
+    # the QC pass/fail CSVs are in the same-named folder of the QC filtering block.
+    if not any(
+        QCStatus.from_csv_path(fp) is not None for fps in keyed_paths.values() for fp in fps
+    ):
+        qc_folder: Optional[Path] = _find_qc_filtering_folder(path)
+        if qc_folder is not None:
+            for key, files in _collect_keyed_paths(qc_folder).items():
+                keyed_paths.setdefault(key, []).extend(files)
 
     match list(keyed_paths.items()):
         case [(key, files)]:
@@ -133,6 +132,47 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0
                 path=path,
                 why=f"Not exactly 1 key, but rather {len(keyed_paths)} keys, were found: {', '.join(keyed_paths.keys())}",
             )
+
+
+def _collect_keyed_paths(folder: Path) -> dict[str, list[Path]]:
+    """Group the ZARR and QC pass/fail CSV paths directly in the given folder by filename prefix."""
+    keyed_paths: dict[str, list[Path]] = {}
+    for curr_path in folder.iterdir():
+        message: Optional[str] = None
+        for suffix in (".zarr", *(qc.filename_extension for qc in QCStatus)):
+            if not curr_path.name.endswith(suffix):
+                continue
+            key: str = curr_path.name.removesuffix(suffix)
+            if suffix == ".zarr" and curr_path.is_dir():
+                message = f"Accepting ZARR data folder ({key}): {curr_path}"
+            elif curr_path.is_file():
+                message = f"Accepting data file ({key}): {curr_path}"
+            if message is None:
+                raise RuntimeError(f"Unexpected path! {curr_path}")
+            logging.debug(message)
+            keyed_paths.setdefault(key, []).append(curr_path)
+    return keyed_paths
+
+
+def _find_qc_filtering_folder(folder: Path) -> Optional[Path]:
+    """Find the same-named folder in the QC filtering block beside the visualisation block holding the given folder."""
+    if not folder.parent.name.endswith(LOCUS_SPOT_VISUALISATION_BLOCK_SUFFIX):
+        return None
+    candidates: list[Path] = [
+        block / folder.name
+        for block in folder.parent.parent.iterdir()
+        if block.name.endswith(LOCUS_SPOT_QC_FILTERING_BLOCK_SUFFIX)
+        and (block / folder.name).is_dir()
+    ]
+    if len(candidates) != 1:
+        logging.debug(
+            "Not exactly 1 QC filtering folder, but rather %d, found for %s: %s",
+            len(candidates),
+            folder,
+            candidates,
+        )
+        return None
+    return candidates[0]
 
 
 def build_single_file_points_layer(path: PathLike) -> PointsLayer:

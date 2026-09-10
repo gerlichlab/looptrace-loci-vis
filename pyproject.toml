@@ -107,6 +107,7 @@ target-version = "py310"
     "INP001", # part of an implicit namespace package
     "D103", # Missing docstring in public function
     "ANN201", # Missing return type annotation for public function
+    "S101", # Use of assert
 ]
 
 [tool.ruff.lint]
