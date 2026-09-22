@@ -2,18 +2,33 @@
 First, check the general information about [installation and environment](./README.md#installation-and-environment).
 
 ### Quickstart
-To visualise the locus spots, you need to __drag-and-drop a _folder___ into an active Napari window. This folder will have been produced directly by `looptrace`, or you'll create it by moving files created by `looptrace`.
+To visualise the locus spots, you need to __drag-and-drop a _folder___ into an active Napari window.
 
-That folder must contain __3 items__:
+#### From a `looptrace` run
+Drag __one FOV and region's folder__ from the locus spot visualisation block:
+```text
+Analysis_NNN_<timestamp>/B19_LOCUS_SPOT_VISUALISATION/P0001__Chr2a/
+```
+Folders are named `<fov>__<region name>`, or just `<fov>__` (e.g., `P0001__`) when the region has no name.
+
+That folder holds only the image, `P0001__Chr2a.zarr`. The QC pass/fail CSVs are published by a different block, so the plugin reads them from the folder of the same name in the QC filtering block of the same analysis folder:
+```text
+Analysis_NNN_<timestamp>/
+├── B17_LOCUS_SPOT_QC_FILTERING/P0001__Chr2a/P0001__Chr2a.qcpass.csv
+│                                            P0001__Chr2a.qcfail.csv
+└── B19_LOCUS_SPOT_VISUALISATION/P0001__Chr2a/P0001__Chr2a.zarr
+```
+The blocks are matched by the end of their names (`_LOCUS_SPOT_VISUALISATION`, `_LOCUS_SPOT_QC_FILTERING`), not by their numbers. If you copy the data elsewhere, keep both block folders side by side.
+
+Dragging the QC filtering block's folder, or a whole block folder, loads no layers.
+
+#### From any other folder
+A folder can instead hold all __3 items__ itself:
     * ZARR (folder) array with name matching the folder it's in (up to the `.zarr` extension)
     * `*.qcfail.csv`: CSV file with coordinate of spot fit centers, and column encoding QC fail reasons
     * `*.qcpass.csv`: same as QC fail file, but without column for failures
 
-These properties should be entirely or nearly satisfied by a run of `looptrace`. 
-At most, only these steps should be required to prepare the data:
-1. Create a new folder, ideally just locally on your desktop, to organise the data.
-1. Within that folder, create a subfolder named with a meaningful key, for each unit of data which you want to visualise.
-1. Copy, for each unit of data you want to view, the ZARR and QC pass/fail CSV files from the locus spot images visualisation folder made by `looptrace`, into the corresponding subfolder. The prefixes of these filenames must correspond to the name of the subfolder into which they're being placed.
+The prefixes of these filenames must match the name of the folder they're in.
 
 For the image layer, you'll want to select "continuous" rather than "once" for the "auto-contrast" setting in the upper-left area of the Napari window. 
 For each new unit/collection of data to view, you'll need to clear the layers from the active Napari window, then drag in the next folder.
@@ -35,7 +50,7 @@ For each new unit/collection of data to view, you'll need to clear the layers fr
 * Each image file should have a `.zarr` extension.
 * Each points file should have a `.qc(pass|fail).csv` extension.
 * Each `.zarr` should either have a `.zarray` immediately inside it, or have a single `0` subfolder which has a `.zarray` inside it.
-* Each points file should have __NO HEADER__. See [the examples](../looptrace_loci_vis/examples/).
+* Each points file should have a header, with at least the columns `traceIndex`, `regionIndex`, `timeIndex`, `z`, `y` and `x`, plus `failCode` in the QC-fail file.
 * Ensure that "continuous" rather than "once" is selected for the "auto-contrast" setting in the upper-left area of the Napari window.
 
 ### Frequently asked questions (FAQ)

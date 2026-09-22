@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.3.6] - 2026-09-22
+
+### Added
+* Read the output published by `looptrace`'s Nextflow pipeline: when the dragged folder is in a `*_LOCUS_SPOT_VISUALISATION` block and holds only the ZARR, take the QC pass/fail CSVs from the same-named folder in the `*_LOCUS_SPOT_QC_FILTERING` block beside it.
+* The search runs in that direction only, by design: the visualisation folder is the one to drop, and dropping the QC filtering folder is refused rather than resolved in reverse. The image is what the points are drawn on and what napari orders first, so one folder is the anchor; the mirror search would be the same code with the suffixes swapped, and is left out so there is a single story and a single set of failure modes. The refusal names the folder to drop instead.
+
+### Changed
+* Fix the usage docs, which said points files must have no header.
+* A folder that cannot be read because it is the wrong half of the pair now says which folder to drop. Both halves previously refused with "Not exactly 3 files", which is true of either and says nothing about the choice; dropping the QC filtering folder is the likeliest mistake, since that is where somebody looking for QC results will click first. The refusal from a visualisation folder likewise says that the QC filtering block was searched for and what was found.
+
 ## [v0.3.5] - 2025-11-03
 
 ### Changed
