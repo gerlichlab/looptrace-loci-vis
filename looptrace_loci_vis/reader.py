@@ -86,10 +86,11 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0
                     why=f"Key ({key}) derived from folder contents doesn't match path name ({path.name})",
                 )
             if len(files) != 3:  # noqa: PLR2004
-                return _do_not_parse(  # type: ignore[func-returns-value, no-any-return]
-                    path=path,
-                    why=f"Not exactly 3 files, but rather {len(files)}, found for key '{key}'",
-                )
+                why = f"Not exactly 3 files, but rather {len(files)}, found for key '{key}'"
+                hint: Optional[str] = _hint_at_the_folder_to_drop(path)
+                if hint is not None:
+                    why = f"{why}. {hint}"
+                return _do_not_parse(path=path, why=why)  # type: ignore[func-returns-value, no-any-return]
 
             path_by_status = dict(
                 choose(
@@ -154,16 +155,26 @@ def _collect_keyed_paths(folder: Path) -> dict[str, list[Path]]:
     return keyed_paths
 
 
-def _find_qc_filtering_folder(folder: Path) -> Optional[Path]:
-    """Find the same-named folder in the QC filtering block beside the visualisation block holding the given folder."""
-    if not folder.parent.name.endswith(LOCUS_SPOT_VISUALISATION_BLOCK_SUFFIX):
-        return None
-    candidates: list[Path] = [
+def _qc_filtering_candidates(folder: Path) -> list[Path]:
+    """The same-named folders under a QC filtering block beside the given folder's block.
+
+    One definition, used both to find the CSVs and to say what was found when the
+    count is not 1, so a refusal cannot describe a different search than the one
+    that ran.
+    """
+    return [
         block / folder.name
         for block in folder.parent.parent.iterdir()
         if block.name.endswith(LOCUS_SPOT_QC_FILTERING_BLOCK_SUFFIX)
         and (block / folder.name).is_dir()
     ]
+
+
+def _find_qc_filtering_folder(folder: Path) -> Optional[Path]:
+    """Find the same-named folder in the QC filtering block beside the visualisation block holding the given folder."""
+    if not folder.parent.name.endswith(LOCUS_SPOT_VISUALISATION_BLOCK_SUFFIX):
+        return None
+    candidates: list[Path] = _qc_filtering_candidates(folder)
     if len(candidates) != 1:
         logging.debug(
             "Not exactly 1 QC filtering folder, but rather %d, found for %s: %s",
@@ -173,6 +184,41 @@ def _find_qc_filtering_folder(folder: Path) -> Optional[Path]:
         )
         return None
     return candidates[0]
+
+
+def _hint_at_the_folder_to_drop(folder: Path) -> Optional[str]:
+    """Name the folder to drop, when the one dropped is the wrong half of a pair.
+
+    One field of view's data is split across two looptrace blocks: the image in
+    ``*_LOCUS_SPOT_VISUALISATION``, the QC pass/fail CSVs in the same-named
+    folder under ``*_LOCUS_SPOT_QC_FILTERING``. Only the visualisation folder can
+    be dropped, because only that direction is searched.
+
+    Without this, both halves refuse with "Not exactly 3 files", which is true of
+    either and says nothing about which one to use. That matters most for the QC
+    filtering folder, since it is where somebody looking for QC results will
+    click first.
+    """
+    parent: str = folder.parent.name
+    if parent.endswith(LOCUS_SPOT_QC_FILTERING_BLOCK_SUFFIX):
+        return (
+            "This is the QC filtering folder, which holds only the CSVs; drop the"
+            f" '{folder.name}' folder of the {LOCUS_SPOT_VISUALISATION_BLOCK_SUFFIX}"
+            " block instead, and these CSVs will be picked up from here"
+        )
+    if parent.endswith(LOCUS_SPOT_VISUALISATION_BLOCK_SUFFIX):
+        candidates: list[Path] = _qc_filtering_candidates(folder)
+        found: str = (
+            "none does"
+            if not candidates
+            else f"but {len(candidates)} do: {', '.join(c.parent.name for c in candidates)}"
+        )
+        return (
+            "The QC pass/fail CSVs are not here but in the QC filtering block:"
+            f" exactly one {LOCUS_SPOT_QC_FILTERING_BLOCK_SUFFIX} block holding a"
+            f" '{folder.name}' folder must sit beside '{parent}', {found}"
+        )
+    return None
 
 
 def build_single_file_points_layer(path: PathLike) -> PointsLayer:

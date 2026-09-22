@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 * Fix the usage docs, which said points files must have no header.
+* A folder that cannot be read because it is the wrong half of the pair now says which folder to drop. Both halves previously refused with "Not exactly 3 files", which is true of either and says nothing about the choice; dropping the QC filtering folder is the likeliest mistake, since that is where somebody looking for QC results will click first. The refusal from a visualisation folder likewise says that the QC filtering block was searched for and what was found.
 
 ## [v0.3.5] - 2025-11-03
 

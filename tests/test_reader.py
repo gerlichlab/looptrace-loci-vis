@@ -1,10 +1,17 @@
 """Tests for which dragged folders the reader accepts, and where it finds the files for the layers."""
 
+import logging
 from pathlib import Path
 
 import pytest
 import zarr  # type: ignore[import-untyped]
 
+from looptrace_loci_vis._const import (
+    LOCUS_SPOT_QC_FILTERING_BLOCK_SUFFIX as QC_FILTERING_BLOCK_SUFFIX,
+)
+from looptrace_loci_vis._const import (
+    LOCUS_SPOT_VISUALISATION_BLOCK_SUFFIX as VISUALISATION_BLOCK_SUFFIX,
+)
 from looptrace_loci_vis.reader import get_reader
 
 VISUALISATION_BLOCK = "B19_LOCUS_SPOT_VISUALISATION"
@@ -76,6 +83,54 @@ def test_qc_filtering_folder_is_refused(tmp_path: Path):
     write_csvs(dragged, "P0001__Chr2a")
 
     assert get_reader(dragged) is None
+
+
+def test_refusing_the_qc_filtering_folder_names_the_one_to_drop(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+):
+    """The likeliest mistake, so the refusal should not merely count files.
+
+    Somebody looking for QC results clicks the QC filtering block first, and both
+    halves of the pair refuse with "Not exactly 3 files" -- true of either, and
+    no help in choosing.
+    """
+    write_zarr(tmp_path / VISUALISATION_BLOCK / "P0001__Chr2a", "P0001__Chr2a")
+    dragged = tmp_path / QC_FILTERING_BLOCK / "P0001__Chr2a"
+    write_csvs(dragged, "P0001__Chr2a")
+
+    with caplog.at_level(logging.DEBUG):
+        assert get_reader(dragged) is None
+    assert VISUALISATION_BLOCK_SUFFIX in caplog.text
+    assert "P0001__Chr2a' folder of the" in caplog.text
+
+
+def test_refusing_a_visualisation_folder_says_the_qc_block_is_missing(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+):
+    """The other half: the search happened and found nothing, which the refusal should say."""
+    dragged = tmp_path / VISUALISATION_BLOCK / "P0001__Chr2a"
+    write_zarr(dragged, "P0001__Chr2a")
+
+    with caplog.at_level(logging.DEBUG):
+        assert get_reader(dragged) is None
+    assert QC_FILTERING_BLOCK_SUFFIX in caplog.text
+    assert "none does" in caplog.text
+
+
+def test_refusal_counts_the_qc_blocks_it_actually_found(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+):
+    """Saying none was found would be false when several were; the message shares the search."""
+    dragged = tmp_path / VISUALISATION_BLOCK / "P0001__Chr2a"
+    write_zarr(dragged, "P0001__Chr2a")
+    write_csvs(tmp_path / QC_FILTERING_BLOCK / "P0001__Chr2a", "P0001__Chr2a")
+    write_csvs(tmp_path / "B18_LOCUS_SPOT_QC_FILTERING" / "P0001__Chr2a", "P0001__Chr2a")
+
+    with caplog.at_level(logging.DEBUG):
+        assert get_reader(dragged) is None
+    assert "but 2 do" in caplog.text
+    assert QC_FILTERING_BLOCK in caplog.text
+    assert "B18_LOCUS_SPOT_QC_FILTERING" in caplog.text
 
 
 def test_qc_filtering_block_is_not_searched_from_outside_visualisation_block(tmp_path: Path):
