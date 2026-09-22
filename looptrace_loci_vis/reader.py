@@ -172,6 +172,12 @@ def _qc_filtering_candidates(folder: Path) -> list[Path]:
 
 def _find_qc_filtering_folder(folder: Path) -> Optional[Path]:
     """Find the same-named folder in the QC filtering block beside the visualisation block holding the given folder."""
+    # Deliberately one-directional: visualisation -> QC filtering, never the
+    # reverse. The image is what the points are drawn on and what napari orders
+    # first, so the visualisation folder is the one to drop, and there is exactly
+    # one way to be wrong about it. The mirror search would be the same lines
+    # with the suffixes swapped; it is left out so there is one story and one set
+    # of failure modes, and a QC filtering folder gets told where to go instead.
     if not folder.parent.name.endswith(LOCUS_SPOT_VISUALISATION_BLOCK_SUFFIX):
         return None
     candidates: list[Path] = _qc_filtering_candidates(folder)
