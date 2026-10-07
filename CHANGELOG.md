@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+* Open under napari 0.5 and later as well as 0.4. napari 0.5 renamed the Points layer's `edge_width`, `edge_width_is_relative` and `edge_color` arguments to `border_*`, and later releases refuse the old names, so a locus-spot folder failed to open with `add_points() got an unexpected keyword argument 'edge_width'` (seen on napari 0.9.2). The reader now passes whichever names the installed napari uses. The napari pin (`==0.4.19.post1` on macOS) is unchanged: napari 0.9 needs Python 3.11 or later, and this project still supports 3.10.
+
 ## [v0.3.6] - 2026-09-22
 
 ### Added
