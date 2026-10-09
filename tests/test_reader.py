@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 import zarr  # type: ignore[import-untyped]
 
+from looptrace_loci_vis import reader as reader_module
 from looptrace_loci_vis._const import (
     LOCUS_SPOT_QC_FILTERING_BLOCK_SUFFIX as QC_FILTERING_BLOCK_SUFFIX,
 )
@@ -148,3 +149,43 @@ def test_more_than_one_qc_filtering_block_is_refused(tmp_path: Path):
     write_csvs(tmp_path / "B18_LOCUS_SPOT_QC_FILTERING" / "P0001__Chr2a", "P0001__Chr2a")
 
     assert get_reader(dragged) is None
+
+
+@pytest.mark.parametrize(
+    ("napari_version", "outline"),
+    [
+        ("0.4.19.post1", "edge"),
+        ("0.5.0", "border"),
+        ("0.9.2", "border"),
+        ("1.0.0", "border"),
+    ],
+)
+def test_points_are_outlined_by_the_name_the_installed_napari_uses(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, napari_version: str, outline: str
+):
+    # napari 0.5 renamed the Points layer's edge_* arguments to border_*, and refuses the old ones since.
+    monkeypatch.setattr(reader_module.metadata, "version", lambda _: napari_version)
+    dragged = tmp_path / "P0001"
+    write_zarr(dragged, "P0001")
+    write_csvs(dragged, "P0001")
+
+    layers = get_reader(dragged)(dragged)
+
+    other = "border" if outline == "edge" else "edge"
+    for _, params, layer_type in layers:
+        if layer_type != "points":
+            continue
+        assert {f"{outline}_width", f"{outline}_width_is_relative", f"{outline}_color"} <= set(
+            params
+        )
+        assert not any(name.startswith(f"{other}_") for name in params)
+
+
+def test_points_use_the_current_names_when_napari_is_not_installed(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    def missing(_: str) -> str:
+        raise reader_module.metadata.PackageNotFoundError("napari")
+
+    monkeypatch.setattr(reader_module.metadata, "version", missing)
+    assert reader_module.points_outline_name() == "border"

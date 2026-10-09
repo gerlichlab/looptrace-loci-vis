@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "looptrace-loci-vis"
-version = "0.3.6"
+version = "0.3.7"
 description = "This project facilitates viewing, in `napari`, locus-specific spots from `looptrace`."
 authors = ["Vince Reuter"]
 license = "MIT"

@@ -3,6 +3,7 @@
 import logging
 import os
 from enum import Enum
+from importlib import metadata
 from pathlib import Path
 from typing import Optional
 
@@ -227,11 +228,27 @@ def _hint_at_the_folder_to_drop(folder: Path) -> Optional[str]:
     return None
 
 
+def points_outline_name() -> str:
+    """What the installed napari calls the outline of a point: 'edge' until 0.4, 'border' from 0.5.
+
+    napari 0.5 renamed the Points layer's ``edge_width``, ``edge_width_is_relative``
+    and ``edge_color`` to ``border_*``, and later releases refuse the old names;
+    0.4 knows only the old ones. Without napari installed, as when this is
+    imported outside a viewer, the current names are used.
+    """
+    try:
+        major, minor = (int(part) for part in metadata.version("napari").split(".")[:2])
+    except (metadata.PackageNotFoundError, ValueError):
+        return "border"
+    return "edge" if (major, minor) < (0, 5) else "border"
+
+
 def build_single_file_points_layer(path: PathLike) -> PointsLayer:
     """Build the parser for a single file (ZARR or CSV relevant for locus points viewing)."""
+    outline = points_outline_name()
     static_params = {
-        "edge_width": 0.1,
-        "edge_width_is_relative": True,
+        f"{outline}_width": 0.1,
+        f"{outline}_width_is_relative": True,
         "n_dimensional": False,
     }
 
@@ -263,7 +280,7 @@ def build_single_file_points_layer(path: PathLike) -> PointsLayer:
         )
 
     # Use the information gleaned from filename and from file header to determine point color and to read data.
-    color_meta = {"edge_color": color.value, "face_color": color.value}
+    color_meta = {f"{outline}_color": color.value, "face_color": color.value}
     base_point_records = read_file(path)
     point_records, center_flags, extra_meta = process_records(base_point_records)
 
