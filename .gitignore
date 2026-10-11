@@ -7,3 +7,7 @@ __pycache__/
 
 # test-related
 .coverage*
+
+# editor-related
+.vscode/
+
