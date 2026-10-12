@@ -1,3 +1,3 @@
 """Napari plugin for visualising locus-specific points from looptrace"""
 
-__version__ = "0.3.7"
+__version__ = "0.4.0"
