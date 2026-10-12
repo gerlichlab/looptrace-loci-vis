@@ -788,25 +788,25 @@ tqdm = ["tqdm"]
 
 [[package]]
 name = "gertils"
-version = "0.6.1"
+version = "0.7.0"
 description = "General computing utilities for data processing and analysis in the Gerlich group at IMBA"
 optional = false
-python-versions = ">=3.10.0,<3.13"
+python-versions = ">=3.11,<3.14"
 groups = ["main"]
 files = []
 develop = false
 
 [package.dependencies]
-dask = "^2023.5.1"
-numpy = "^1.24.2"
+dask = ">=2023.5.1"
+numpy = ">=1.24.2,<3"
 numpydoc_decorator = "^2.2.1"
 zarr = "^2.4.12"
 
 [package.source]
 type = "git"
 url = "https://github.com/gerlichlab/gertils.git"
-reference = "v0.6.1"
-resolved_reference = "1f8d4b8c749c479d43a8161b8b9f42e98e276885"
+reference = "v0.7.0"
+resolved_reference = "25c20861ba51b101ec4e6fc4c0ae19b8731e5730"
 
 [[package]]
 name = "heapdict"
@@ -3845,4 +3845,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "137bfd272d5163e989ecbf7e216e1c00e876781889027fe6fc40a85393d32ed8"
+content-hash = "ae19f88a920decbcab43959f4d8f1620b37f6ca7c136665e6b80f6ad2eb1a031"
