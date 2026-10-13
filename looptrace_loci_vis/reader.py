@@ -71,8 +71,8 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0
     keyed_paths: dict[str, list[Path]] = _collect_keyed_paths(path)
     # A folder in looptrace's locus spot visualisation block holds only the ZARR;
     # the QC pass/fail CSVs are in the same-named folder of the QC filtering block.
-    if not any(
-        QCStatus.from_csv_path(fp) is not None for fps in keyed_paths.values() for fp in fps
+    if all(
+        QCStatus.from_csv_path(fp) is None for fps in keyed_paths.values() for fp in fps
     ):
         qc_folder: Optional[Path] = _find_qc_filtering_folder(path)
         if qc_folder is not None:
