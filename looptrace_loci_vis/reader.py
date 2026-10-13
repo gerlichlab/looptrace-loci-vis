@@ -7,7 +7,7 @@ from importlib import metadata
 from pathlib import Path
 from typing import Optional
 
-from expression import Option
+from expression import Option, Result, identity, result
 from expression.collections.seq import choose
 from gertils.zarr_tools import read_zarr
 from numpydoc_decorator import doc  # type: ignore[import-untyped]
@@ -71,13 +71,14 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0
     keyed_paths: dict[str, list[Path]] = _collect_keyed_paths(path)
     # A folder in looptrace's locus spot visualisation block holds only the ZARR;
     # the QC pass/fail CSVs are in the same-named folder of the QC filtering block.
-    if all(
-        QCStatus.from_csv_path(fp) is None for fps in keyed_paths.values() for fp in fps
-    ):
-        qc_folder: Optional[Path] = _find_qc_filtering_folder(path)
-        if qc_folder is not None:
-            for key, files in _collect_keyed_paths(qc_folder).items():
-                keyed_paths.setdefault(key, []).extend(files)
+    if _looks_like_nested_block_and_qc_structure(path):
+        match _find_qc_filtering_folder(path):
+            case result.Result(tag="error", error=err_msg):
+                why = _hint_at_the_folder_to_drop(path, err_msg)
+                return _do_not_parse(path=path, why=why)  # type: ignore[func-returns-value, no-any-return]
+            case result.Result(tag="ok", ok=qc_folder):
+                for key, files in _collect_keyed_paths(qc_folder).items():
+                    keyed_paths.setdefault(key, []).extend(files)
 
     match list(keyed_paths.items()):
         case [(key, files)]:
@@ -86,12 +87,6 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0
                     path=path,
                     why=f"Key ({key}) derived from folder contents doesn't match path name ({path.name})",
                 )
-            if len(files) != 3:  # noqa: PLR2004
-                why = f"Not exactly 3 files, but rather {len(files)}, found for key '{key}'"
-                hint: Optional[str] = _hint_at_the_folder_to_drop(path)
-                if hint is not None:
-                    why = f"{why}. {hint}"
-                return _do_not_parse(path=path, why=why)  # type: ignore[func-returns-value, no-any-return]
 
             path_by_status = dict(
                 choose(
@@ -100,35 +95,49 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0
                     )
                 )(files)
             )
+            fail_path: Option[Path] = Option.Nothing()
+            pass_path: Option[Path] = Option.Nothing()
             try:
-                fail_path = path_by_status.pop(QCStatus.FAIL)
-                pass_path = path_by_status.pop(QCStatus.PASS)
+                fail_path = Option.Some(path_by_status.pop(QCStatus.FAIL))
             except KeyError:
-                return _do_not_parse(  # type: ignore[func-returns-value, no-any-return]
-                    path=path,
-                    why=f"Could not find 1 each of QC status (pass/fail); path by status: {path_by_status}",
-                )
+                logging.debug("No QC fail CSV found")
+            try:
+                pass_path = Option.Some(path_by_status.pop(QCStatus.PASS))
+            except KeyError:
+                logging.debug("No QC pass CSV found")
             if len(path_by_status) != 0:  # after popping out the required key-value pairs
+                # This would imply that a status other than PASS or FAIL had been found.
                 raise RuntimeError(f"Extra QC status/path pairs! {path_by_status}")
-            left_to_match = [f for f in files if f not in [fail_path, pass_path]]
-            if (
-                len(left_to_match) != 1
-            ):  # Now there should be exactly the single .zarr path remaining.
-                raise RuntimeError(
-                    f"Nonsense! After finding 2 QC files among 3 files of interest, only 1 should remain but got {len(left_to_match)}: {left_to_match}"
-                )
-            potential_zarr: Path = left_to_match[0]
-            if potential_zarr.suffix != ".zarr" or potential_zarr.name.removesuffix(".zarr") != key:
-                return _do_not_parse(path=path, why=f"Could not find ZARR for key '{key}'")  # type: ignore[func-returns-value, no-any-return]
+            # Now there should be exactly the single .zarr path remaining.
+            match [f for f in files if f not in choose(identity)([fail_path, pass_path])]:
+                case [potential_zarr]:
+                    if (
+                        potential_zarr.suffix != ".zarr"
+                        or potential_zarr.name.removesuffix(".zarr") != key
+                    ):
+                        return _do_not_parse(path=path, why=f"Could not find ZARR for key '{key}'")  # type: ignore[func-returns-value, no-any-return]
 
-            def parse(_):  # type: ignore[no-untyped-def] # noqa: ANN202 ANN001
-                image_layer: ImageLayer = (read_zarr(potential_zarr), {}, "image")
-                failures_layer: PointsLayer = build_single_file_points_layer(fail_path)
-                successes_layer: PointsLayer = build_single_file_points_layer(pass_path)
-                return [image_layer, failures_layer, successes_layer]
+                    def parse(_):  # type: ignore[no-untyped-def] # noqa: ANN202 ANN001
+                        image_layer: ImageLayer = (read_zarr(potential_zarr), {}, "image")
+                        maybe_layers = [
+                            Option.Some(image_layer),
+                            fail_path.map(build_single_file_points_layer),
+                            pass_path.map(build_single_file_points_layer),
+                        ]
+                        return choose(identity)(maybe_layers)
 
-            return parse
-
+                    return parse
+                case []:
+                    why = _hint_at_the_folder_to_drop(
+                        path,
+                        "After accounting for spot points' CSVs, no path remains to parse as image data",
+                    )
+                    return _do_not_parse(path=path, why=why)  # type: ignore[func-returns-value, no-any-return]
+                case left_to_match:
+                    return _do_not_parse(  # type: ignore[func-returns-value, no-any-return]
+                        path=path,
+                        why=f"After accounting for spot points' CSVs, expected exactly 1 (ZARR) path left to process, but found {len(left_to_match)}: {left_to_match}",
+                    )
         case _:
             return _do_not_parse(  # type: ignore[func-returns-value, no-any-return]
                 path=path,
@@ -171,7 +180,11 @@ def _qc_filtering_candidates(folder: Path) -> list[Path]:
     ]
 
 
-def _find_qc_filtering_folder(folder: Path) -> Optional[Path]:
+def _looks_like_nested_block_and_qc_structure(folder: Path) -> bool:
+    return folder.parent.name.endswith(LOCUS_SPOT_VISUALISATION_BLOCK_SUFFIX)
+
+
+def _find_qc_filtering_folder(folder: Path) -> Result[Path, str]:
     """Find the same-named folder in the QC filtering block beside the visualisation block holding the given folder."""
     # Deliberately one-directional: visualisation -> QC filtering, never the
     # reverse. The image is what the points are drawn on and what napari orders
@@ -179,26 +192,24 @@ def _find_qc_filtering_folder(folder: Path) -> Optional[Path]:
     # one way to be wrong about it. The mirror search would be the same lines
     # with the suffixes swapped; it is left out so there is one story and one set
     # of failure modes, and a QC filtering folder gets told where to go instead.
-    if not folder.parent.name.endswith(LOCUS_SPOT_VISUALISATION_BLOCK_SUFFIX):
-        return None
+    if not _looks_like_nested_block_and_qc_structure(folder):
+        return Result.Error(
+            f"Folder is not under a visualisation block (suffix {LOCUS_SPOT_VISUALISATION_BLOCK_SUFFIX})"
+        )
     match _qc_filtering_candidates(folder):
         case [unique_match]:
-            return unique_match
+            return Result.Ok(unique_match)
         case matches:
-            logging.debug(
-                "Not exactly 1 QC filtering folder, but rather %d, found for %s: %s",
-                len(matches),
-                folder,
-                matches,
+            return Result.Error(
+                f"Not exactly 1 QC filtering folder, but rather {len(matches)}, found for {folder}: {matches}"
             )
-            return None
 
 
-def _hint_at_the_folder_to_drop(folder: Path) -> Optional[str]:
+def _hint_at_the_folder_to_drop(folder: Path, basic_reason: str) -> str:
     """Name the folder to drop, when the one dropped is the wrong half of a pair.
 
     One field of view's data is split across two looptrace blocks: the image in
-    ``*_LOCUS_SPOT_VISUALISATION``, the QC pass/fail CSVs in the same-named
+    ``*_LOCUS_SPOT_VISUALISATION``, and the QC pass/fail CSVs in the same-named
     folder under ``*_LOCUS_SPOT_QC_FILTERING``. Only the visualisation folder can
     be dropped, because only that direction is searched.
 
@@ -208,8 +219,9 @@ def _hint_at_the_folder_to_drop(folder: Path) -> Optional[str]:
     click first.
     """
     parent: str = folder.parent.name
+    maybe_hint: Option[str] = Option.Nothing()
     if parent.endswith(LOCUS_SPOT_QC_FILTERING_BLOCK_SUFFIX):
-        return (
+        maybe_hint = Option.Some(
             "This is the QC filtering folder, which holds only the CSVs; drop the"
             f" '{folder.name}' folder of the {LOCUS_SPOT_VISUALISATION_BLOCK_SUFFIX}"
             " block instead, and these CSVs will be picked up from here"
@@ -221,12 +233,12 @@ def _hint_at_the_folder_to_drop(folder: Path) -> Optional[str]:
             if not candidates
             else f"but {len(candidates)} do: {', '.join(c.parent.name for c in candidates)}"
         )
-        return (
+        maybe_hint = Option.Some(
             "The QC pass/fail CSVs are not here but in the QC filtering block:"
             f" exactly one {LOCUS_SPOT_QC_FILTERING_BLOCK_SUFFIX} block holding a"
             f" '{folder.name}' folder must sit beside '{parent}', {found}"
         )
-    return None
+    return maybe_hint.map(lambda hint: f"{basic_reason} -- {hint}").default_value(basic_reason)
 
 
 def points_outline_name() -> str:
