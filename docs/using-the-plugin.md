@@ -28,7 +28,8 @@ A folder can instead hold all __3 items__ itself:
 * `*.qcfail.csv`: CSV file with coordinate of spot fit centers, and column encoding QC fail reasons
 * `*.qcpass.csv`: same as QC fail file, but without column for failures
 
-The prefixes of these filenames must match the name of the folder they're in.
+The prefixes of these filenames must match the name of the folder they're in. 
+If either CSVs is missing (e.g., there were no QC-fail spots), the plugin will still work, parsing only what's available.
 
 For the image layer, you'll want to select "continuous" rather than "once" for the "auto-contrast" setting in the upper-left area of the Napari window. 
 For each new unit/collection of data to view, you'll need to clear the layers from the active Napari window, then drag in the next folder.
