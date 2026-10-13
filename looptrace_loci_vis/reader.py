@@ -181,16 +181,17 @@ def _find_qc_filtering_folder(folder: Path) -> Optional[Path]:
     # of failure modes, and a QC filtering folder gets told where to go instead.
     if not folder.parent.name.endswith(LOCUS_SPOT_VISUALISATION_BLOCK_SUFFIX):
         return None
-    candidates: list[Path] = _qc_filtering_candidates(folder)
-    if len(candidates) != 1:
-        logging.debug(
-            "Not exactly 1 QC filtering folder, but rather %d, found for %s: %s",
-            len(candidates),
-            folder,
-            candidates,
-        )
-        return None
-    return candidates[0]
+    match _qc_filtering_candidates(folder):
+        case [unique_match]:
+            return unique_match
+        case matches:
+            logging.debug(
+                "Not exactly 1 QC filtering folder, but rather %d, found for %s: %s",
+                len(matches),
+                folder,
+                matches,
+            )
+            return None
 
 
 def _hint_at_the_folder_to_drop(folder: Path) -> Optional[str]:
