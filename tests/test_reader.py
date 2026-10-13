@@ -124,13 +124,13 @@ def test_refusal_counts_the_qc_blocks_it_actually_found(
     """Saying none was found would be false when several were; the message shares the search."""
     dragged = tmp_path / VISUALISATION_BLOCK / "P0001__Chr2a"
     write_zarr(dragged, "P0001__Chr2a")
-    write_csvs(tmp_path / QC_FILTERING_BLOCK / "P0001__Chr2a", "P0001__Chr2a")
+    write_csvs(tmp_path / "B17_LOCUS_SPOT_QC_FILTERING" / "P0001__Chr2a", "P0001__Chr2a")
     write_csvs(tmp_path / "B18_LOCUS_SPOT_QC_FILTERING" / "P0001__Chr2a", "P0001__Chr2a")
 
     with caplog.at_level(logging.DEBUG):
         assert get_reader(dragged) is None
     assert "but 2 do" in caplog.text
-    assert QC_FILTERING_BLOCK in caplog.text
+    assert "B17_LOCUS_SPOT_QC_FILTERING" in caplog.text
     assert "B18_LOCUS_SPOT_QC_FILTERING" in caplog.text
 
 
@@ -145,7 +145,7 @@ def test_qc_filtering_block_is_not_searched_from_outside_visualisation_block(tmp
 def test_more_than_one_qc_filtering_block_is_refused(tmp_path: Path):
     dragged = tmp_path / VISUALISATION_BLOCK / "P0001__Chr2a"
     write_zarr(dragged, "P0001__Chr2a")
-    write_csvs(tmp_path / QC_FILTERING_BLOCK / "P0001__Chr2a", "P0001__Chr2a")
+    write_csvs(tmp_path / "B17_LOCUS_SPOT_QC_FILTERING" / "P0001__Chr2a", "P0001__Chr2a")
     write_csvs(tmp_path / "B18_LOCUS_SPOT_QC_FILTERING" / "P0001__Chr2a", "P0001__Chr2a")
 
     assert get_reader(dragged) is None
