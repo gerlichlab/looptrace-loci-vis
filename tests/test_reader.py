@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 
 import pytest
-import zarr  # type: ignore[import-untyped]
+import zarr
 
 from looptrace_loci_vis import reader as reader_module
 from looptrace_loci_vis._const import (
@@ -169,7 +169,10 @@ def test_points_are_outlined_by_the_name_the_installed_napari_uses(
     write_zarr(dragged, "P0001")
     write_csvs(dragged, "P0001")
 
-    layers = get_reader(dragged)(dragged)
+    reader = get_reader(dragged)
+
+    assert reader is not None
+    layers = reader(dragged)
 
     other = "border" if outline == "edge" else "edge"
     for _, params, layer_type in layers:

@@ -10,7 +10,7 @@ from typing import Optional
 from expression import Option
 from expression.collections.seq import choose
 from gertils.zarr_tools import read_zarr
-from numpydoc_decorator import doc  # type: ignore[import-untyped]
+from numpydoc_decorator import doc
 
 from ._const import (
     LOCUS_SPOT_QC_FILTERING_BLOCK_SUFFIX,
@@ -62,11 +62,11 @@ class QCStatus(Enum):
 )
 def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0911, PLR0912
     if isinstance(path, str):
-        path: Path = Path(path)  # type: ignore[no-redef]
+        path = Path(path)
     if not isinstance(path, Path):
-        return _do_not_parse(path=path, why=f"Not a str or Path, but {type(path).__name__}")  # type: ignore[arg-type, func-returns-value, no-any-return]
+        return _do_not_parse(path=str(path), why=f"Not a str or Path, but {type(path).__name__}")
     if not path.is_dir():
-        return _do_not_parse(path=path, why="Not a folder/directory")  # type: ignore[func-returns-value, no-any-return]
+        return _do_not_parse(path=path, why="Not a folder/directory")
 
     keyed_paths: dict[str, list[Path]] = _collect_keyed_paths(path)
     # A folder in looptrace's locus spot visualisation block holds only the ZARR;
@@ -82,7 +82,7 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0
     match list(keyed_paths.items()):
         case [(key, files)]:
             if path.name != key:
-                return _do_not_parse(  # type: ignore[func-returns-value, no-any-return]
+                return _do_not_parse(
                     path=path,
                     why=f"Key ({key}) derived from folder contents doesn't match path name ({path.name})",
                 )
@@ -91,20 +91,19 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0
                 hint: Optional[str] = _hint_at_the_folder_to_drop(path)
                 if hint is not None:
                     why = f"{why}. {hint}"
-                return _do_not_parse(path=path, why=why)  # type: ignore[func-returns-value, no-any-return]
+                return _do_not_parse(path=path, why=why)
 
-            path_by_status = dict(
-                choose(
-                    lambda fp: Option.of_optional(QCStatus.from_csv_path(fp)).map(  # type: ignore[arg-type]
-                        lambda status: (status, fp)
-                    )
-                )(files)
-            )
+            def status_and_path(fp: Path) -> Option[tuple[QCStatus, Path]]:
+                return Option.of_optional(QCStatus.from_csv_path(fp)).map(
+                    lambda status: (status, fp)
+                )
+
+            path_by_status: dict[QCStatus, Path] = dict(choose(status_and_path)(files))
             try:
                 fail_path = path_by_status.pop(QCStatus.FAIL)
                 pass_path = path_by_status.pop(QCStatus.PASS)
             except KeyError:
-                return _do_not_parse(  # type: ignore[func-returns-value, no-any-return]
+                return _do_not_parse(
                     path=path,
                     why=f"Could not find 1 each of QC status (pass/fail); path by status: {path_by_status}",
                 )
@@ -119,9 +118,9 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0
                 )
             potential_zarr: Path = left_to_match[0]
             if potential_zarr.suffix != ".zarr" or potential_zarr.name.removesuffix(".zarr") != key:
-                return _do_not_parse(path=path, why=f"Could not find ZARR for key '{key}'")  # type: ignore[func-returns-value, no-any-return]
+                return _do_not_parse(path=path, why=f"Could not find ZARR for key '{key}'")
 
-            def parse(_):  # type: ignore[no-untyped-def] # noqa: ANN202 ANN001
+            def parse(_: PathLike) -> list[ImageLayer | PointsLayer]:
                 image_layer: ImageLayer = (read_zarr(potential_zarr), {}, "image")
                 failures_layer: PointsLayer = build_single_file_points_layer(fail_path)
                 successes_layer: PointsLayer = build_single_file_points_layer(pass_path)
@@ -130,7 +129,7 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0
             return parse
 
         case _:
-            return _do_not_parse(  # type: ignore[func-returns-value, no-any-return]
+            return _do_not_parse(
                 path=path,
                 why=f"Not exactly 1 key, but rather {len(keyed_paths)} keys, were found: {', '.join(keyed_paths.keys())}",
             )
@@ -262,27 +261,26 @@ def build_single_file_points_layer(path: PathLike) -> PointsLayer:
         parser = HeadedTraceTimePointParser
     else:
         raise NotImplementedError("Parsing headerless CSV is no longer supported (v0.3.0).")
-    # Then, determine the functions to used based on inferred QC status.
+    # Then, read the data the way its inferred QC status calls for, and pick the point color.
     if qc == QCStatus.PASS:
         logging.debug("Will parse sas QC-pass: %s", path)
         color = PointColor.GOLDENROD
-        read_file = parser.parse_all_qcpass
-        process_records = records_to_qcpass_layer_data
+        point_records, center_flags, extra_meta = records_to_qcpass_layer_data(
+            parser.parse_all_qcpass(path)
+        )
     elif qc == QCStatus.FAIL:
         logging.debug("Will parse as QC-fail: %s", path)
         color = PointColor.DEEP_SKY_BLUE
-        read_file = parser.parse_all_qcfail  # type: ignore[assignment]
-        process_records = records_to_qcfail_layer_data  # type: ignore[assignment]
+        point_records, center_flags, extra_meta = records_to_qcfail_layer_data(
+            parser.parse_all_qcfail(path)
+        )
     else:
         _do_not_parse(path=path, why="Could not infer QC status", level=logging.ERROR)
         raise ValueError(
             f"Despite undertaking parse, file from which QC status could not be parsed was encountered: {path}"
         )
 
-    # Use the information gleaned from filename and from file header to determine point color and to read data.
     color_meta = {f"{outline}_color": color.value, "face_color": color.value}
-    base_point_records = read_file(path)
-    point_records, center_flags, extra_meta = process_records(base_point_records)
 
     if not point_records:
         logging.warning("No data rows parsed!")
@@ -320,7 +318,7 @@ def records_to_qcfail_layer_data(
         points.extend(new_points)
         center_flags.extend(new_flags)
         codes.extend([qc] * len(new_points))
-    params = {
+    params: LayerParams = {
         "size": 0,  # Make the point invisible and just use text.
         "text": {
             "string": "{failCodes}",

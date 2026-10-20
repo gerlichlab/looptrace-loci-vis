@@ -51,15 +51,18 @@ optional = true
 
 [tool.poetry.group.formatting.dependencies]
 codespell = ">=2.2.4"
-ruff = "==0.7.4"  # https://github.com/astral-sh/ruff/issues/14681
+# The version looptrace pins, so the projects are formatted and linted by the same ruff.
+ruff = "==0.7.4"
 
 [tool.poetry.group.linting]
 optional = true
 
 [tool.poetry.group.linting.dependencies]
-mypy = ">=1.0.1"
 pandas-stubs = "*"
-ruff = "==0.7.4"  # https://github.com/astral-sh/ruff/issues/14681
+# The version looptrace pins, so the projects are type-checked by the same pyright.
+pyright = "==1.1.411"
+# The version looptrace pins, so the projects are formatted and linted by the same ruff.
+ruff = "==0.7.4"
 
 [tool.poetry.group.testsuite.dependencies]
 npe2 = "*"
@@ -74,27 +77,11 @@ ignore-words-list = "jupyter,iff"  # prevent jupyter -> jupiter, iff -> if
 check-filenames = true
 uri-ignore-words-list = "*" # prevent spelling correction in URL-like values.
 
-[tool.mypy]
-files = ['looptrace_loci_vis/*.py', 'tests/*.py']
-plugins = ["pydantic.mypy"]
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_return_any = true
-warn_unreachable = true
-enable_error_code = ["ignore-without-code"]
-
-[[tool.mypy.overrides]]
-module = "looptrace_loci_vis.*"
-disallow_untyped_defs = true
-disallow_untyped_calls = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-disallow_any_unimported = true
-disallow_any_explicit = true
-disallow_any_generics = true
-disallow_subclassing_any = true
-implicit_optional = false
-strict_optional = true
+[tool.pyright]
+include = ["looptrace_loci_vis", "tests"]
+# The package itself gets strict checking; the tests get the standard level.
+strict = ["looptrace_loci_vis"]
+reportUnnecessaryTypeIgnoreComment = "error"
 
 [tool.ruff]
 # Black uses line-length = 88, but allows exceptions when breaking the line
@@ -103,6 +90,12 @@ line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint.per-file-ignores]
+"typings/*" = [
+    # Stubs copy the signatures of third-party code, which we can't change.
+    "FBT001",  # Boolean-typed positional argument in function definition
+    "FBT002",  # Boolean default positional argument in function definition
+    "PLR0913",  # Too many arguments in function definition
+]
 "tests/*.py" = [
     "INP001", # part of an implicit namespace package
     "D103", # Missing docstring in public function

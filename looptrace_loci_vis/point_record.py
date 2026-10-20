@@ -2,13 +2,13 @@
 
 import dataclasses
 from math import floor
-from typing import Union
+from typing import Union, cast
 
 import numpy as np
 from gertils.geometry import ImagePoint3D
 from gertils.types import TimepointFrom0 as Timepoint
 from gertils.types import TraceIdFrom0 as TraceId
-from numpydoc_decorator import doc  # type: ignore[import-untyped]
+from numpydoc_decorator import doc
 
 from ._types import FlatPointRecord
 
@@ -30,15 +30,16 @@ class PointRecord:  # noqa: D101
     point: ImagePoint3D
 
     def __post_init__(self) -> None:
+        # Checked at runtime, since callers may pass any type despite the annotations.
         bads: dict[str, object] = {}
-        if not isinstance(self.trace_id, TraceId):
-            bads["trace ID"] = self.trace_id  # type: ignore[unreachable]
-        if not isinstance(self.region_time, Timepoint):
-            bads["region index"] = self.region_time  # type: ignore[unreachable]
-        if not isinstance(self.timepoint, Timepoint):
-            bads["time index"] = self.timepoint  # type: ignore[unreachable]
-        if not isinstance(self.point, ImagePoint3D):
-            bads["point"] = self.point  # type: ignore[unreachable]
+        if not isinstance(cast("object", self.trace_id), TraceId):
+            bads["trace ID"] = self.trace_id
+        if not isinstance(cast("object", self.region_time), Timepoint):
+            bads["region index"] = self.region_time
+        if not isinstance(cast("object", self.timepoint), Timepoint):
+            bads["time index"] = self.timepoint
+        if not isinstance(cast("object", self.point), ImagePoint3D):
+            bads["point"] = self.point
         if bads:
             messages = "; ".join(f"Bad type ({type(v).__name__}) for {k}" for k, v in bads.items())
             raise TypeError(f"Cannot create point record: {messages}")
@@ -85,30 +86,29 @@ class PointRecord:  # noqa: D101
 def expand_along_z(  # noqa: D103
     r: PointRecord, *, z_max: Union[float, np.float64]
 ) -> tuple[list[PointRecord], list[bool]]:
-    if not isinstance(z_max, int | float | np.float64):
+    # Checked at runtime, since callers may pass any type despite the annotation.
+    # np.float64 is a subclass of float.
+    if not isinstance(cast("object", z_max), int | float):
         raise TypeError(f"Bad type for z_max: {type(z_max).__name__}")
 
     r = r.with_truncated_z()
     z_center: int = int(r.point.z)
-    z_max: int = floor(z_max)  # type: ignore[no-redef]
-    if not isinstance(z_center, int) or not isinstance(z_max, int):
-        raise TypeError(
-            f"Z center and Z max must be int; got {type(z_center).__name__} and"
-            f" {type(z_max).__name__}"
-        )
+    z_top: int = floor(z_max)
 
     # Check that max z and center z make sense together.
-    if z_max < z_center:
+    if z_top < z_center:
         raise ValueError(f"Max z must be at least as great as central z ({z_center})")
 
     # Build the records and flags of where the center in z really is.
     predecessors = [(r.with_new_z(i), False) for i in range(z_center)]
-    successors = [(r.with_new_z(i), False) for i in range(z_center + 1, z_max + 1)]
-    points, params = zip(*[*predecessors, (r, True), *successors], strict=False)
+    successors = [(r.with_new_z(i), False) for i in range(z_center + 1, z_top + 1)]
+    pairs = [*predecessors, (r, True), *successors]
+    points = [point for point, _ in pairs]
+    center_flags = [is_center for _, is_center in pairs]
 
     # Each record should give rise to a total of 1 + z_max records, since numbering from 0.
-    if len(points) != 1 + z_max:
+    if len(points) != 1 + z_top:
         raise RuntimeError(
-            f"Number of points generated from single spot center isn't as expected! Point={r}, z_max={z_max}, len(points)={len(points)}"
+            f"Number of points generated from single spot center isn't as expected! Point={r}, z_max={z_top}, len(points)={len(points)}"
         )
-    return points, params  # type: ignore[return-value]
+    return points, center_flags

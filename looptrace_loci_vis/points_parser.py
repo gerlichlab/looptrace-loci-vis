@@ -17,9 +17,9 @@ I1 = TypeVar("I1")
 I2 = TypeVar("I2", bound=Sized)
 
 
-class MappingLike(Protocol, Sized):  # noqa: D101
+class MappingLike(Sized, Protocol):  # noqa: D101
     @abc.abstractmethod
-    def __getitem__(self, key: str) -> object: ...
+    def __getitem__(self, key: str, /) -> object: ...
 
     @abc.abstractmethod
     def __len__(self) -> int: ...
@@ -69,17 +69,21 @@ class HeadedTraceTimePointParser(IterativePointsParser[PathLike, MappingLike]):
 
     @classmethod
     def _gen_records(cls, data: PathLike) -> Iterable[MappingLike]:
-        for _, row in pd.read_csv(data).iterrows():
+        # pandas-stubs leaves parts of read_csv's signature and the type of each row unknown.
+        frame: pd.DataFrame = pd.read_csv(data)  # pyright: ignore[reportUnknownMemberType]
+        for _, row in frame.iterrows():  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
             yield row
 
     @classmethod
     def _parse_single_qcpass_record(cls, record: MappingLike) -> PointRecord:
-        trace = TraceId(int(record["traceIndex"]))  # type: ignore[call-overload]
-        region_time = Timepoint(int(record[cls.REGION_INDEX_COLUMN]))  # type: ignore[call-overload]
-        timepoint = Timepoint(int(record[cls.TIME_INDEX_COLUMN]))  # type: ignore[call-overload]
-        z = float(record["z"])  # type: ignore[arg-type]
-        y = float(record["y"])  # type: ignore[arg-type]
-        x = float(record["x"])  # type: ignore[arg-type]
+        # A cell is whatever scalar pandas read, so only int() and float() can tell
+        # whether it converts.
+        trace = TraceId(int(record["traceIndex"]))  # pyright: ignore[reportArgumentType]
+        region_time = Timepoint(int(record[cls.REGION_INDEX_COLUMN]))  # pyright: ignore[reportArgumentType]
+        timepoint = Timepoint(int(record[cls.TIME_INDEX_COLUMN]))  # pyright: ignore[reportArgumentType]
+        z = float(record["z"])  # pyright: ignore[reportArgumentType]
+        y = float(record["y"])  # pyright: ignore[reportArgumentType]
+        x = float(record["x"])  # pyright: ignore[reportArgumentType]
         point = ImagePoint3D(z=z, y=y, x=x)
         return PointRecord(
             trace_id=trace, region_time=region_time, timepoint=timepoint, point=point
@@ -92,5 +96,4 @@ class HeadedTraceTimePointParser(IterativePointsParser[PathLike, MappingLike]):
         fail_code = record["failCode"]
         if not isinstance(fail_code, str):
             raise TypeError(f"failCode is not str, but {type(fail_code).__name__}")
-        fail_code: str = str(fail_code)  # type: ignore[no-redef]
         return pt_rec, fail_code
