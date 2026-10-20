@@ -45,7 +45,9 @@ def write_csvs(folder: Path, key: str) -> None:
 
 
 @pytest.mark.parametrize("key", KEYS)
-def test_visualisation_folder_is_read_with_csvs_from_qc_filtering_block(tmp_path: Path, key: str):
+def test_visualisation_folder_is_read_with_csvs_from_qc_filtering_block(
+    tmp_path: Path, key: str
+):
     dragged = tmp_path / VISUALISATION_BLOCK / key
     write_zarr(dragged, key)
     write_csvs(tmp_path / QC_FILTERING_BLOCK / key, key)
@@ -70,7 +72,9 @@ def test_folder_holding_all_three_items_is_read(tmp_path: Path, key: str):
     assert [layer_type for _, _, layer_type in layers] == ["image", "points", "points"]
 
 
-def test_visualisation_folder_without_same_named_qc_filtering_folder_is_refused(tmp_path: Path):
+def test_visualisation_folder_without_same_named_qc_filtering_folder_is_refused(
+    tmp_path: Path,
+):
     dragged = tmp_path / VISUALISATION_BLOCK / "P0001__Chr2a"
     write_zarr(dragged, "P0001__Chr2a")
     write_csvs(tmp_path / QC_FILTERING_BLOCK / "P0002__Chr2a", "P0002__Chr2a")
@@ -125,7 +129,9 @@ def test_refusal_counts_the_qc_blocks_it_actually_found(
     dragged = tmp_path / VISUALISATION_BLOCK / "P0001__Chr2a"
     write_zarr(dragged, "P0001__Chr2a")
     write_csvs(tmp_path / QC_FILTERING_BLOCK / "P0001__Chr2a", "P0001__Chr2a")
-    write_csvs(tmp_path / "B18_LOCUS_SPOT_QC_FILTERING" / "P0001__Chr2a", "P0001__Chr2a")
+    write_csvs(
+        tmp_path / "B18_LOCUS_SPOT_QC_FILTERING" / "P0001__Chr2a", "P0001__Chr2a"
+    )
 
     with caplog.at_level(logging.DEBUG):
         assert get_reader(dragged) is None
@@ -134,7 +140,9 @@ def test_refusal_counts_the_qc_blocks_it_actually_found(
     assert "B18_LOCUS_SPOT_QC_FILTERING" in caplog.text
 
 
-def test_qc_filtering_block_is_not_searched_from_outside_visualisation_block(tmp_path: Path):
+def test_qc_filtering_block_is_not_searched_from_outside_visualisation_block(
+    tmp_path: Path,
+):
     dragged = tmp_path / "copied" / "P0001__Chr2a"
     write_zarr(dragged, "P0001__Chr2a")
     write_csvs(tmp_path / QC_FILTERING_BLOCK / "P0001__Chr2a", "P0001__Chr2a")
@@ -146,7 +154,9 @@ def test_more_than_one_qc_filtering_block_is_refused(tmp_path: Path):
     dragged = tmp_path / VISUALISATION_BLOCK / "P0001__Chr2a"
     write_zarr(dragged, "P0001__Chr2a")
     write_csvs(tmp_path / QC_FILTERING_BLOCK / "P0001__Chr2a", "P0001__Chr2a")
-    write_csvs(tmp_path / "B18_LOCUS_SPOT_QC_FILTERING" / "P0001__Chr2a", "P0001__Chr2a")
+    write_csvs(
+        tmp_path / "B18_LOCUS_SPOT_QC_FILTERING" / "P0001__Chr2a", "P0001__Chr2a"
+    )
 
     assert get_reader(dragged) is None
 
@@ -178,9 +188,11 @@ def test_points_are_outlined_by_the_name_the_installed_napari_uses(
     for _, params, layer_type in layers:
         if layer_type != "points":
             continue
-        assert {f"{outline}_width", f"{outline}_width_is_relative", f"{outline}_color"} <= set(
-            params
-        )
+        assert {
+            f"{outline}_width",
+            f"{outline}_width_is_relative",
+            f"{outline}_color",
+        } <= set(params)
         assert not any(name.startswith(f"{other}_") for name in params)
 
 

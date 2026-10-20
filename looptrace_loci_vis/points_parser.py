@@ -34,7 +34,9 @@ class PointsParser(Protocol, Generic[Input]):
 
     @classmethod
     @abc.abstractmethod
-    def parse_all_qcfail(cls, data: Input) -> list[tuple[PointRecord, QCFailReasons]]: ...  # noqa: D102
+    def parse_all_qcfail(  # noqa: D102
+        cls, data: Input
+    ) -> list[tuple[PointRecord, QCFailReasons]]: ...
 
 
 class IterativePointsParser(Generic[I1, I2], PointsParser[I1]):
@@ -50,7 +52,9 @@ class IterativePointsParser(Generic[I1, I2], PointsParser[I1]):
 
     @classmethod
     @abc.abstractmethod
-    def _parse_single_qcfail_record(cls, record: I2) -> tuple[PointRecord, QCFailReasons]: ...
+    def _parse_single_qcfail_record(
+        cls, record: I2
+    ) -> tuple[PointRecord, QCFailReasons]: ...
 
     @classmethod
     def parse_all_qcpass(cls, data: I1) -> list[PointRecord]:  # noqa: D102
@@ -90,7 +94,9 @@ class HeadedTraceTimePointParser(IterativePointsParser[PathLike, MappingLike]):
         )
 
     @classmethod
-    def _parse_single_qcfail_record(cls, record: MappingLike) -> tuple[PointRecord, QCFailReasons]:
+    def _parse_single_qcfail_record(
+        cls, record: MappingLike
+    ) -> tuple[PointRecord, QCFailReasons]:
         """A fail record parses the same as a pass one, just with one additional field for QC fail reasons."""
         pt_rec = cls._parse_single_qcpass_record(record)
         fail_code = record["failCode"]

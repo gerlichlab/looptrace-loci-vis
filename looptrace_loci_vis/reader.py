@@ -57,14 +57,18 @@ class QCStatus(Enum):
 @doc(
     summary="Read and display locus-specific spots from looptrace.",
     parameters=dict(path="Path from which to parse layers"),
-    raises=dict(RuntimeError="If collection of QC statuses inferred from files doesn't make sense"),
+    raises=dict(
+        RuntimeError="If collection of QC statuses inferred from files doesn't make sense"
+    ),
     returns="A function to create layers from folder path, if folder path is parsable",
 )
 def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0911, PLR0912
     if isinstance(path, str):
         path = Path(path)
     if not isinstance(path, Path):
-        return _do_not_parse(path=str(path), why=f"Not a str or Path, but {type(path).__name__}")
+        return _do_not_parse(
+            path=str(path), why=f"Not a str or Path, but {type(path).__name__}"
+        )
     if not path.is_dir():
         return _do_not_parse(path=path, why="Not a folder/directory")
 
@@ -72,7 +76,9 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0
     # A folder in looptrace's locus spot visualisation block holds only the ZARR;
     # the QC pass/fail CSVs are in the same-named folder of the QC filtering block.
     if not any(
-        QCStatus.from_csv_path(fp) is not None for fps in keyed_paths.values() for fp in fps
+        QCStatus.from_csv_path(fp) is not None
+        for fps in keyed_paths.values()
+        for fp in fps
     ):
         qc_folder: Optional[Path] = _find_qc_filtering_folder(path)
         if qc_folder is not None:
@@ -107,7 +113,9 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0
                     path=path,
                     why=f"Could not find 1 each of QC status (pass/fail); path by status: {path_by_status}",
                 )
-            if len(path_by_status) != 0:  # after popping out the required key-value pairs
+            if (
+                len(path_by_status) != 0
+            ):  # after popping out the required key-value pairs
                 raise RuntimeError(f"Extra QC status/path pairs! {path_by_status}")
             left_to_match = [f for f in files if f not in [fail_path, pass_path]]
             if (
@@ -117,8 +125,13 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0
                     f"Nonsense! After finding 2 QC files among 3 files of interest, only 1 should remain but got {len(left_to_match)}: {left_to_match}"
                 )
             potential_zarr: Path = left_to_match[0]
-            if potential_zarr.suffix != ".zarr" or potential_zarr.name.removesuffix(".zarr") != key:
-                return _do_not_parse(path=path, why=f"Could not find ZARR for key '{key}'")
+            if (
+                potential_zarr.suffix != ".zarr"
+                or potential_zarr.name.removesuffix(".zarr") != key
+            ):
+                return _do_not_parse(
+                    path=path, why=f"Could not find ZARR for key '{key}'"
+                )
 
             def parse(_: PathLike) -> list[ImageLayer | PointsLayer]:
                 image_layer: ImageLayer = (read_zarr(potential_zarr), {}, "image")
@@ -260,7 +273,9 @@ def build_single_file_points_layer(path: PathLike) -> PointsLayer:
         logging.debug("Will parse has having header: %s", path)
         parser = HeadedTraceTimePointParser
     else:
-        raise NotImplementedError("Parsing headerless CSV is no longer supported (v0.3.0).")
+        raise NotImplementedError(
+            "Parsing headerless CSV is no longer supported (v0.3.0)."
+        )
     # Then, read the data the way its inferred QC status calls for, and pick the point color.
     if qc == QCStatus.PASS:
         logging.debug("Will parse sas QC-pass: %s", path)

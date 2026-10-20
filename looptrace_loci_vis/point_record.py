@@ -41,7 +41,9 @@ class PointRecord:  # noqa: D101
         if not isinstance(cast("object", self.point), ImagePoint3D):
             bads["point"] = self.point
         if bads:
-            messages = "; ".join(f"Bad type ({type(v).__name__}) for {k}" for k, v in bads.items())
+            messages = "; ".join(
+                f"Bad type ({type(v).__name__}) for {k}" for k, v in bads.items()
+            )
             raise TypeError(f"Cannot create point record: {messages}")
 
     @doc(summary="Flatten")
