@@ -13,7 +13,7 @@ from looptrace_loci_vis._const import (
 from looptrace_loci_vis._const import (
     LOCUS_SPOT_VISUALISATION_BLOCK_SUFFIX as VISUALISATION_BLOCK_SUFFIX,
 )
-from looptrace_loci_vis.reader import get_reader
+from looptrace_loci_vis.reader import QCStatus, get_reader
 
 VISUALISATION_BLOCK = "B19_LOCUS_SPOT_VISUALISATION"
 QC_FILTERING_BLOCK = "B17_LOCUS_SPOT_QC_FILTERING"
@@ -21,15 +21,18 @@ QC_FILTERING_BLOCK = "B17_LOCUS_SPOT_QC_FILTERING"
 # The folder name is <fov>__<region name>, and just <fov>__ when the region has no name.
 KEYS = ["P0001__Chr2a", "P0001__"]
 
-QCPASS_LINES = [
-    "regionTime,traceId,locusTime,traceIndex,regionIndex,timeIndex,z,y,x",
-    "83,1,1,0,0,0,8.2,16.7,8.7",
-    "83,1,5,0,0,1,9.0,15.0,10.5",
-]
-QCFAIL_LINES = [
-    "regionTime,traceId,locusTime,traceIndex,regionIndex,timeIndex,z,y,x,failCode",
-    "83,1,3,0,0,1,9.7,15.8,8.8,z",
-]
+
+CSV_LINES = {
+    QCStatus.PASS: [
+        "regionTime,traceId,locusTime,traceIndex,regionIndex,timeIndex,z,y,x",
+        "83,1,1,0,0,0,8.2,16.7,8.7",
+        "83,1,5,0,0,1,9.0,15.0,10.5",
+    ],
+    QCStatus.FAIL: [
+        "regionTime,traceId,locusTime,traceIndex,regionIndex,timeIndex,z,y,x,failCode",
+        "83,1,3,0,0,1,9.7,15.8,8.8,z",
+    ],
+}
 
 
 def write_zarr(folder: Path, key: str) -> None:
@@ -38,52 +41,111 @@ def write_zarr(folder: Path, key: str) -> None:
     root.zeros(f"{key}.zarr", shape=(1, 1, 2, 12, 24, 24), dtype="uint16")
 
 
+def write_csv_lines(folder: Path, key: str, status: QCStatus) -> None:
+    lines = CSV_LINES[status]
+    (folder / f"{key}.qc{status.value}.csv").write_text("\n".join(lines) + "\n")
+
+
 def write_csvs(folder: Path, key: str) -> None:
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / f"{key}.qcpass.csv").write_text("\n".join(QCPASS_LINES) + "\n")
-    (folder / f"{key}.qcfail.csv").write_text("\n".join(QCFAIL_LINES) + "\n")
+    write_csv_lines(folder=folder, key=key, status=QCStatus.PASS)
+    write_csv_lines(folder=folder, key=key, status=QCStatus.FAIL)
+
+
+def get_expected_layer_types(qc_statuses: list[QCStatus]) -> list[str]:
+    points_layer_names: list[str]
+    if qc_statuses == []:
+        points_layer_names = []
+    elif qc_statuses in ([QCStatus.PASS], [QCStatus.FAIL]):
+        points_layer_names = ["points"]
+    elif len(qc_statuses) == 2 and set(qc_statuses) == {QCStatus.PASS, QCStatus.FAIL}:  # noqa: PLR2004
+        points_layer_names = ["points", "points"]
+    else:
+        raise ValueError(f"Unexpected QC statuses: {qc_statuses}")
+    return ["image", *points_layer_names]
 
 
 @pytest.mark.parametrize("key", KEYS)
-def test_visualisation_folder_is_read_with_csvs_from_qc_filtering_block(tmp_path: Path, key: str):
+def test_visualisation_with_no_qc_filtering_folder_is_not_read(
+    tmp_path: Path, key: str, caplog: pytest.LogCaptureFixture
+):
     dragged = tmp_path / VISUALISATION_BLOCK / key
     write_zarr(dragged, key)
-    write_csvs(tmp_path / QC_FILTERING_BLOCK / key, key)
 
-    reader = get_reader(dragged)
-
-    assert reader is not None
-    layers = reader(dragged)
-    assert [layer_type for _, _, layer_type in layers] == ["image", "points", "points"]
+    with caplog.at_level(logging.DEBUG):
+        assert get_reader(dragged) is None
+    exp_msg = f"Not exactly 1 QC filtering folder, but rather 0, found for {dragged}: []"
+    assert exp_msg in caplog.text
 
 
 @pytest.mark.parametrize("key", KEYS)
-def test_folder_holding_all_three_items_is_read(tmp_path: Path, key: str):
-    dragged = tmp_path / key
+@pytest.mark.parametrize(
+    "fail_statuses_to_write",
+    [[], [QCStatus.PASS], [QCStatus.FAIL], [QCStatus.PASS, QCStatus.FAIL]],
+    ids=["none", "pass-only", "fail-only", "pass-and-fail"],
+)
+def test_visualisation_folder_with_csvs_from_qc_filtering_block_is_read(
+    tmp_path: Path, key: str, fail_statuses_to_write: list[QCStatus]
+):
+    dragged = tmp_path / VISUALISATION_BLOCK / key
     write_zarr(dragged, key)
-    write_csvs(dragged, key)
+    qc_filtering_block_folder = tmp_path / QC_FILTERING_BLOCK / key
+    qc_filtering_block_folder.mkdir(parents=True, exist_ok=True)
+    for qc_status in fail_statuses_to_write:
+        write_csv_lines(folder=qc_filtering_block_folder, key=key, status=qc_status)
 
     reader = get_reader(dragged)
 
     assert reader is not None
     layers = reader(dragged)
-    assert [layer_type for _, _, layer_type in layers] == ["image", "points", "points"]
+    expected_layer_types = get_expected_layer_types(fail_statuses_to_write)
+    assert [layer_type for _, _, layer_type in layers] == expected_layer_types
 
 
-def test_visualisation_folder_without_same_named_qc_filtering_folder_is_refused(tmp_path: Path):
+@pytest.mark.parametrize("key", KEYS)
+@pytest.mark.parametrize(
+    "fail_statuses_to_write",
+    [[], [QCStatus.PASS], [QCStatus.FAIL], [QCStatus.PASS, QCStatus.FAIL]],
+    ids=["none", "pass-only", "fail-only", "pass-and-fail"],
+)
+def test_folder_directly_containing_zarr_any_nonempty_subset_of_expected_csvs_is_read(
+    tmp_path: Path, key: str, fail_statuses_to_write: list[QCStatus]
+):
+    dragged = tmp_path / key
+    write_zarr(dragged, key)
+    for qc_status in fail_statuses_to_write:
+        write_csv_lines(folder=dragged, key=key, status=qc_status)
+
+    reader = get_reader(dragged)
+
+    assert reader is not None
+    layers = reader(dragged)
+    expected_layer_types = get_expected_layer_types(fail_statuses_to_write)
+    assert [layer_type for _, _, layer_type in layers] == expected_layer_types
+
+
+def test_visualisation_folder_without_same_named_qc_filtering_folder_is_refused(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+):
     dragged = tmp_path / VISUALISATION_BLOCK / "P0001__Chr2a"
     write_zarr(dragged, "P0001__Chr2a")
     write_csvs(tmp_path / QC_FILTERING_BLOCK / "P0002__Chr2a", "P0002__Chr2a")
 
-    assert get_reader(dragged) is None
+    with caplog.at_level(logging.DEBUG):
+        assert get_reader(dragged) is None
+    exp_msg = f"Not exactly 1 QC filtering folder, but rather 0, found for {dragged}: []"
+    assert exp_msg in caplog.text
 
 
-def test_qc_filtering_folder_is_refused(tmp_path: Path):
+def test_qc_filtering_folder_is_refused(tmp_path: Path, caplog: pytest.LogCaptureFixture):
     write_zarr(tmp_path / VISUALISATION_BLOCK / "P0001__Chr2a", "P0001__Chr2a")
     dragged = tmp_path / QC_FILTERING_BLOCK / "P0001__Chr2a"
     write_csvs(dragged, "P0001__Chr2a")
 
-    assert get_reader(dragged) is None
+    with caplog.at_level(logging.DEBUG):
+        assert get_reader(dragged) is None
+    exp_msg = "After accounting for spot points' CSVs, no path remains to parse as image data"
+    assert exp_msg in caplog.text
 
 
 def test_refusing_the_qc_filtering_folder_names_the_one_to_drop(
@@ -124,13 +186,13 @@ def test_refusal_counts_the_qc_blocks_it_actually_found(
     """Saying none was found would be false when several were; the message shares the search."""
     dragged = tmp_path / VISUALISATION_BLOCK / "P0001__Chr2a"
     write_zarr(dragged, "P0001__Chr2a")
-    write_csvs(tmp_path / QC_FILTERING_BLOCK / "P0001__Chr2a", "P0001__Chr2a")
+    write_csvs(tmp_path / "B17_LOCUS_SPOT_QC_FILTERING" / "P0001__Chr2a", "P0001__Chr2a")
     write_csvs(tmp_path / "B18_LOCUS_SPOT_QC_FILTERING" / "P0001__Chr2a", "P0001__Chr2a")
 
     with caplog.at_level(logging.DEBUG):
         assert get_reader(dragged) is None
     assert "but 2 do" in caplog.text
-    assert QC_FILTERING_BLOCK in caplog.text
+    assert "B17_LOCUS_SPOT_QC_FILTERING" in caplog.text
     assert "B18_LOCUS_SPOT_QC_FILTERING" in caplog.text
 
 
@@ -139,16 +201,27 @@ def test_qc_filtering_block_is_not_searched_from_outside_visualisation_block(tmp
     write_zarr(dragged, "P0001__Chr2a")
     write_csvs(tmp_path / QC_FILTERING_BLOCK / "P0001__Chr2a", "P0001__Chr2a")
 
-    assert get_reader(dragged) is None
+    reader = get_reader(dragged)
+    layers = reader(dragged)
+    assert [layer_type for _, _, layer_type in layers] == ["image"]
 
 
-def test_more_than_one_qc_filtering_block_is_refused(tmp_path: Path):
+def test_more_than_one_qc_filtering_block_is_refused(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+):
     dragged = tmp_path / VISUALISATION_BLOCK / "P0001__Chr2a"
     write_zarr(dragged, "P0001__Chr2a")
-    write_csvs(tmp_path / QC_FILTERING_BLOCK / "P0001__Chr2a", "P0001__Chr2a")
-    write_csvs(tmp_path / "B18_LOCUS_SPOT_QC_FILTERING" / "P0001__Chr2a", "P0001__Chr2a")
+    csv_folder_1 = tmp_path / "B17_LOCUS_SPOT_QC_FILTERING" / "P0001__Chr2a"
+    csv_folder_2 = tmp_path / "B18_LOCUS_SPOT_QC_FILTERING" / "P0001__Chr2a"
+    write_csvs(csv_folder_1, "P0001__Chr2a")
+    write_csvs(csv_folder_2, "P0001__Chr2a")
 
-    assert get_reader(dragged) is None
+    with caplog.at_level(logging.DEBUG):
+        assert get_reader(dragged) is None
+    exp_msg = f"Not exactly 1 QC filtering folder, but rather 2, found for {dragged}:"
+    assert exp_msg in caplog.text
+    assert str(csv_folder_1) in caplog.text
+    assert str(csv_folder_2) in caplog.text
 
 
 @pytest.mark.parametrize(
