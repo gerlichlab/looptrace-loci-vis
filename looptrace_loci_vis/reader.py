@@ -79,7 +79,7 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0
         match _find_qc_filtering_folder(path):
             case result.Result(tag="error", error=err_msg):
                 why = _hint_at_the_folder_to_drop(path, err_msg)
-                return _do_not_parse(path=path, why=why)  # type: ignore[func-returns-value, no-any-return]
+                return _do_not_parse(path=path, why=why)
             case result.Result(tag="ok", ok=qc_folder):
                 for key, files in _collect_keyed_paths(qc_folder).items():
                     keyed_paths.setdefault(key, []).extend(files)
@@ -94,7 +94,7 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0
 
             path_by_status = dict(
                 choose(
-                    lambda fp: Option.of_optional(QCStatus.from_csv_path(fp)).map(  # type: ignore[arg-type]
+                    lambda fp: Option.of_optional(QCStatus.from_csv_path(fp)).map(
                         lambda status: (status, fp)
                     )
                 )(files)
@@ -109,20 +109,30 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0
                 pass_path = Option.Some(path_by_status.pop(QCStatus.PASS))
             except KeyError:
                 logging.debug("No QC pass CSV found")
-            if len(path_by_status) != 0:  # after popping out the required key-value pairs
+            if (
+                len(path_by_status) != 0
+            ):  # after popping out the required key-value pairs
                 # This would imply that a status other than PASS or FAIL had been found.
                 raise RuntimeError(f"Extra QC status/path pairs! {path_by_status}")
             # Now there should be exactly the single .zarr path remaining.
-            match [f for f in files if f not in choose(identity)([fail_path, pass_path])]:
+            match [
+                f for f in files if f not in choose(identity)([fail_path, pass_path])
+            ]:
                 case [potential_zarr]:
                     if (
                         potential_zarr.suffix != ".zarr"
                         or potential_zarr.name.removesuffix(".zarr") != key
                     ):
-                        return _do_not_parse(path=path, why=f"Could not find ZARR for key '{key}'")  # type: ignore[func-returns-value, no-any-return]
+                        return _do_not_parse(
+                            path=path, why=f"Could not find ZARR for key '{key}'"
+                        )
 
-                    def parse(_):  # type: ignore[no-untyped-def] # noqa: ANN202 ANN001
-                        image_layer: ImageLayer = (read_zarr(potential_zarr), {}, "image")
+                    def parse(_):
+                        image_layer: ImageLayer = (
+                            read_zarr(potential_zarr),
+                            {},
+                            "image",
+                        )
                         maybe_layers = [
                             Option.Some(image_layer),
                             fail_path.map(build_single_file_points_layer),
@@ -136,9 +146,9 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0
                         path,
                         "After accounting for spot points' CSVs, no path remains to parse as image data",
                     )
-                    return _do_not_parse(path=path, why=why)  # type: ignore[func-returns-value, no-any-return]
+                    return _do_not_parse(path=path, why=why)
                 case left_to_match:
-                    return _do_not_parse(  # type: ignore[func-returns-value, no-any-return]
+                    return _do_not_parse(
                         path=path,
                         why=f"After accounting for spot points' CSVs, expected exactly 1 (ZARR) path left to process, but found {len(left_to_match)}: {left_to_match}",
                     )
@@ -242,7 +252,9 @@ def _hint_at_the_folder_to_drop(folder: Path, basic_reason: str) -> str:
             f" exactly one {LOCUS_SPOT_QC_FILTERING_BLOCK_SUFFIX} block holding a"
             f" '{folder.name}' folder must sit beside '{parent}', {found}"
         )
-    return maybe_hint.map(lambda hint: f"{basic_reason} -- {hint}").default_value(basic_reason)
+    return maybe_hint.map(lambda hint: f"{basic_reason} -- {hint}").default_value(
+        basic_reason
+    )
 
 
 def points_outline_name() -> str:
