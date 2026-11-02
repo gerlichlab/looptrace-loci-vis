@@ -14,7 +14,7 @@ The Nix shell stays on 3.12, and ruff targets it, as the lower of the two.
 ### Changed
 * Depend on `gertils` v0.8.0, which requires zarr 3, and whose `read_zarr` reads zarr format 3 as well as format 2: the plugin opens a locus's images in either format.
 See [looptrace issue 579](https://github.com/gerlichlab/looptrace/issues/579), which moves looptrace to zarr 3.
-* Require zarr 3.1 or later, below 4, the range gertils v0.8.0 requires. The constraint still allowed zarr 2, with which neither gertils v0.8.0 nor the tests work.
+* The plugin no longer declares zarr, which it never imports: it reads its stores through gertils, and gertils v0.8.0 requires zarr 3.1 to 4. The declaration allowed zarr 2, with which neither gertils v0.8.0 nor the tests work. The tests, which write their stores with zarr 3, declare it in their dependency group.
 * Type-check with `pyright` instead of `mypy`, as looptrace, gertils and spotfishing do. The package is checked strictly and the tests at the standard level.
 * Format at ruff's default line length of 88, where it was 100, as in the other repositories behind looptrace.
 * The reader logs through its module's logger, `looptrace_loci_vis.reader`, instead of the root logger, so that napari or an application can set the plugin's log level apart from its own.
