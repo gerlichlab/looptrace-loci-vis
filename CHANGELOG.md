@@ -28,6 +28,7 @@ See [looptrace issue 579](https://github.com/gerlichlab/looptrace/issues/579), w
 ### Fixed
 * A QC pass or fail CSV with only its header, as when every spot of a field of view passed QC or every one failed, no longer stops the folder from opening with `ValueError: max() iterable argument is empty`. The folder opens with an empty points layer for that file, and the warning names the file.
 * A folder whose `.zarr` is a file, or whose QC CSV is a folder, is declined, so napari moves on to other readers. The reader accepted a `.zarr` file and then failed to read it, and failed outright on a CSV folder, with `RuntimeError: Unexpected path!`.
+* pyright runs in the Nix shell on Linux too (#19). The shell now provides Node.js, which the pyright package from PyPI runs on, as the shells of gertils, spotfishing and looptrace-regionals-vis do; without it, pyright downloaded its own Node.js, which failed on Linux.
 
 ## [v0.4.0] - 2026-10-13
 
