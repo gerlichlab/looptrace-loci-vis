@@ -15,7 +15,7 @@ The Nix shell stays on 3.12, and ruff targets it, as the lower of the two.
 ### Changed
 * Depend on `gertils` v0.8.0, which requires zarr 3, and whose `read_zarr` reads zarr format 3 as well as format 2: the plugin opens a locus's images in either format.
 See [looptrace issue 579](https://github.com/gerlichlab/looptrace/issues/579), which moves looptrace to zarr 3.
-* Require zarr 3.1 or later, below 4, the range gertils v0.8.0 requires. The constraint still allowed zarr 2, with which neither gertils v0.8.0 nor the tests work.
+* The plugin no longer declares zarr, which it never imports: it reads its stores through gertils, and gertils v0.8.0 requires zarr 3.1 to 4. The declaration allowed zarr 2, with which neither gertils v0.8.0 nor the tests work. The tests, which write their stores with zarr 3, declare it in their dependency group.
 * The usage docs describe the layout looptrace publishes since v0.24.0, where a folder of the locus spot visualisation block, named `P0001` or `P0001.TG_<group>`, holds its QC pass/fail CSVs beside the ZARR. The plugin looks for the CSVs in the QC filtering block, as runs before v0.24.0 need, only when the folder holds none of its own, and a refusal says both places they may be.
 * A refusal for more or fewer than one QC filtering folder names the folders found.
 * The Nix shell works on Ubuntu outside NixOS: it provides zlib and the C++ standard library to the wheels Poetry installs, and Node.js, on which pyright runs (#19).
