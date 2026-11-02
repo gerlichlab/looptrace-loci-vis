@@ -39,7 +39,10 @@ CSV_LINES = {
 
 
 def write_zarr(folder: Path, key: str, *, zarr_format: Literal[2, 3] = 2) -> None:
-    """Write the image as looptrace publishes it: a ZARR array inside a folder that is a ZARR group, in zarr format 2."""
+    """Write the image as looptrace publishes it: a ZARR array inside a folder that is a ZARR group.
+
+    The store is in the given zarr format, 2 unless told otherwise.
+    """
     root = zarr.open_group(str(folder), mode="a", zarr_format=zarr_format)
     root.zeros(name=f"{key}.zarr", shape=(1, 1, 2, 12, 24, 24), dtype="uint16")
 
@@ -47,6 +50,16 @@ def write_zarr(folder: Path, key: str, *, zarr_format: Literal[2, 3] = 2) -> Non
 def write_csv_lines(folder: Path, key: str, status: QCStatus) -> None:
     lines = CSV_LINES[status]
     (folder / f"{key}.qc{status.value}.csv").write_text("\n".join(lines) + "\n")
+
+
+def write_zarr_with_array_at_0(
+    folder: Path, key: str, *, zarr_format: Literal[2, 3]
+) -> None:
+    """Write the image as a ZARR group whose array is its member ``0``, the other layout read."""
+    group = zarr.open_group(
+        str(folder / f"{key}.zarr"), mode="a", zarr_format=zarr_format
+    )
+    group.zeros(name="0", shape=(1, 1, 2, 12, 24, 24), dtype="uint16")
 
 
 def write_csvs(folder: Path, key: str) -> None:
@@ -109,6 +122,7 @@ def test_visualisation_folder_with_csvs_from_qc_filtering_block_is_read(
     assert [layer_type for _, _, layer_type in layers] == expected_layer_types
 
 
+@pytest.mark.parametrize("zarr_format", [2, 3])
 @pytest.mark.parametrize("key", KEYS)
 @pytest.mark.parametrize(
     "fail_statuses_to_write",
@@ -116,10 +130,13 @@ def test_visualisation_folder_with_csvs_from_qc_filtering_block_is_read(
     ids=["pass-only", "fail-only", "pass-and-fail"],
 )
 def test_folder_directly_containing_zarr_any_nonempty_subset_of_expected_csvs_is_read(
-    tmp_path: Path, key: str, fail_statuses_to_write: list[QCStatus]
+    tmp_path: Path,
+    key: str,
+    fail_statuses_to_write: list[QCStatus],
+    zarr_format: Literal[2, 3],
 ):
     dragged = tmp_path / key
-    write_zarr(dragged, key)
+    write_zarr(dragged, key, zarr_format=zarr_format)
     for qc_status in fail_statuses_to_write:
         write_csv_lines(folder=dragged, key=key, status=qc_status)
 
@@ -212,6 +229,24 @@ def test_folder_with_a_zarr_and_no_csv_is_refused(
     assert "Neither a QC pass nor a QC fail CSV found for key 'P0001'" in caplog.text
     # A folder that's refused isn't warned about, as napari may ask about any folder.
     assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+
+
+@pytest.mark.parametrize("zarr_format", [2, 3])
+def test_zarr_holding_its_array_at_0_is_read(
+    tmp_path: Path, zarr_format: Literal[2, 3]
+):
+    dragged = tmp_path / "P0001"
+    write_zarr_with_array_at_0(dragged, "P0001", zarr_format=zarr_format)
+    write_csvs(dragged, "P0001")
+
+    reader = get_reader(dragged)
+
+    assert reader is not None
+    layers = reader(dragged)
+    assert [layer_type for _, _, layer_type in layers] == ["image", "points", "points"]
+    image_layer = layers[0]
+    assert image_layer[2] == "image"
+    assert image_layer[0].shape == (1, 1, 2, 12, 24, 24)
 
 
 @pytest.mark.parametrize("empty_status", ["pass", "fail"])
