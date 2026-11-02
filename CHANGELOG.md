@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * A folder with the ZARR and only one of the QC pass/fail CSVs opens, with the image and that one points layer, and a warning names the missing CSV. looptrace writes no CSV for a QC status that no spot of a field of view has, such as QC fail when every spot passed, and such a folder was refused with "Not exactly 3 files". A folder with a ZARR and neither CSV is still refused, as it has no points to show.
 
 ### Changed
+* Depend on `gertils` v0.8.0, which requires zarr 3, and whose `read_zarr` reads zarr format 3 as well as format 2: the plugin opens a locus's images in either format.
+See [looptrace issue 579](https://github.com/gerlichlab/looptrace/issues/579), which moves looptrace to zarr 3.
 * The usage docs describe the layout looptrace publishes since v0.24.0, where a folder of the locus spot visualisation block, named `P0001` or `P0001.TG_<group>`, holds its QC pass/fail CSVs beside the ZARR. The plugin looks for the CSVs in the QC filtering block, as runs before v0.24.0 need, only when the folder holds none of its own, and a refusal says both places they may be.
 * A refusal for more or fewer than one QC filtering folder names the folders found.
 * The Nix shell works on Ubuntu outside NixOS: it provides zlib and the C++ standard library to the wheels Poetry installs, and Node.js, on which pyright runs (#19).

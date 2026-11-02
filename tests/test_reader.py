@@ -2,6 +2,7 @@
 
 import logging
 from pathlib import Path
+from typing import Literal
 
 import pytest
 import zarr
@@ -38,10 +39,10 @@ CSV_LINES = {
 }
 
 
-def write_zarr(folder: Path, key: str) -> None:
-    """Write the image as looptrace publishes it: a ZARR array inside a folder that is a ZARR group."""
-    root = zarr.open_group(str(folder), mode="a")
-    root.zeros(f"{key}.zarr", shape=(1, 1, 2, 12, 24, 24), dtype="uint16")
+def write_zarr(folder: Path, key: str, *, zarr_format: Literal[2, 3] = 2) -> None:
+    """Write the image as looptrace publishes it: a ZARR array inside a folder that is a ZARR group, in zarr format 2."""
+    root = zarr.open_group(str(folder), mode="a", zarr_format=zarr_format)
+    root.zeros(name=f"{key}.zarr", shape=(1, 1, 2, 12, 24, 24), dtype="uint16")
 
 
 def write_csv_lines(folder: Path, key: str, status: QCStatus) -> None:
@@ -81,6 +82,7 @@ def test_visualisation_with_no_qc_filtering_folder_is_not_read(
     assert exp_msg in caplog.text
 
 
+@pytest.mark.parametrize("zarr_format", [2, 3])
 @pytest.mark.parametrize("key", KEYS)
 @pytest.mark.parametrize(
     "fail_statuses_to_write",
@@ -88,10 +90,13 @@ def test_visualisation_with_no_qc_filtering_folder_is_not_read(
     ids=["pass-only", "fail-only", "pass-and-fail"],
 )
 def test_visualisation_folder_with_csvs_from_qc_filtering_block_is_read(
-    tmp_path: Path, key: str, fail_statuses_to_write: list[QCStatus]
+    tmp_path: Path,
+    key: str,
+    fail_statuses_to_write: list[QCStatus],
+    zarr_format: Literal[2, 3],
 ):
     dragged = tmp_path / VISUALISATION_BLOCK / key
-    write_zarr(dragged, key)
+    write_zarr(dragged, key, zarr_format=zarr_format)
     qc_filtering_block_folder = tmp_path / QC_FILTERING_BLOCK / key
     qc_filtering_block_folder.mkdir(parents=True, exist_ok=True)
     for qc_status in fail_statuses_to_write:
