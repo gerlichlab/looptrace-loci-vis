@@ -8,7 +8,7 @@
   }) {},
   dev ? true,
 }:
-let py311 = pkgs.python311.withPackages (ps: with ps; [ numpy pandas ]);
+let py312 = pkgs.python312.withPackages (ps: with ps; [ numpy pandas ]);
     poetryExtras = if dev then [ "formatting" "linting" "testsuite" ] else [ ];
     poetryInstallExtras = (
       if poetryExtras == [] then ""
@@ -32,7 +32,7 @@ pkgs.mkShell {
       pkgs.stdenv.cc.cc.lib
     ]}:''${LD_LIBRARY_PATH:-}"
 
-    poetry env use "${py311}/bin/python"
+    poetry env use "${py312}/bin/python"
     installcmd="poetry sync -vvvv${poetryInstallExtras}"
     echo "Running installation command: $installcmd"
     eval "$installcmd"
