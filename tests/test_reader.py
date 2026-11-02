@@ -98,6 +98,24 @@ def test_qc_csv_with_only_its_header_gives_an_empty_points_layer(
     assert str(empty_csv) in caplog.text
 
 
+@pytest.mark.parametrize("odd_path", ["zarr_is_a_file", "csv_is_a_folder"])
+def test_folder_with_a_zarr_file_or_a_csv_folder_is_refused(
+    tmp_path: Path, odd_path: str
+):
+    """get_reader is how napari asks whether the plugin reads a path, so it should decline, not fail."""
+    dragged = tmp_path / "P0001"
+    write_csvs(dragged, "P0001")
+    if odd_path == "zarr_is_a_file":
+        (dragged / "P0001.zarr").write_bytes(b"not a ZARR store")
+    else:
+        write_zarr(dragged, "P0001")
+        csv = dragged / "P0001.qcpass.csv"
+        csv.unlink()
+        csv.mkdir()
+
+    assert get_reader(dragged) is None
+
+
 def test_visualisation_folder_without_same_named_qc_filtering_folder_is_refused(
     tmp_path: Path,
 ):
