@@ -190,18 +190,22 @@ def _collect_keyed_paths(folder: Path) -> dict[str, list[Path]]:
     """Group the ZARR and QC pass/fail CSV paths directly in the given folder by filename prefix."""
     keyed_paths: dict[str, list[Path]] = {}
     for curr_path in folder.iterdir():
-        message: Optional[str] = None
         for suffix in (".zarr", *(qc.filename_extension for qc in QCStatus)):
             if not curr_path.name.endswith(suffix):
                 continue
             key: str = curr_path.name.removesuffix(suffix)
             if suffix == ".zarr" and curr_path.is_dir():
-                message = f"Accepting ZARR data folder ({key}): {curr_path}"
-            elif curr_path.is_file():
-                message = f"Accepting data file ({key}): {curr_path}"
-            if message is None:
-                raise RuntimeError(f"Unexpected path! {curr_path}")
-            logger.debug(message)
+                logger.debug("Accepting ZARR data folder (%s): %s", key, curr_path)
+            elif suffix != ".zarr" and curr_path.is_file():
+                logger.debug("Accepting data file (%s): %s", key, curr_path)
+            else:
+                # Left out, so that the folder is declined for lacking it, rather than
+                # accepted and then failing to read, or failing to be probed at all.
+                logger.debug(
+                    "Ignoring %s: a ZARR must be a folder and a QC CSV a file",
+                    curr_path,
+                )
+                continue
             keyed_paths.setdefault(key, []).append(curr_path)
     return keyed_paths
 

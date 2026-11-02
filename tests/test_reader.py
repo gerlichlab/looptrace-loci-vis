@@ -239,6 +239,34 @@ def test_qc_csv_with_only_its_header_gives_an_empty_points_layer(
     assert str(empty_csv) in caplog.text
 
 
+def test_folder_whose_zarr_is_a_file_is_refused(tmp_path: Path):
+    """get_reader is how napari asks whether the plugin reads a path, so it should decline, not fail."""
+    dragged = tmp_path / "P0001"
+    write_csvs(dragged, "P0001")
+    (dragged / "P0001.zarr").write_bytes(b"not a ZARR store")
+
+    assert get_reader(dragged) is None
+
+
+def test_qc_csv_that_is_a_folder_is_left_out_like_a_missing_one(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+):
+    """Not a CSV, so it gives no layer; the other CSV still does, as for a missing CSV."""
+    dragged = tmp_path / "P0001"
+    write_zarr(dragged, "P0001")
+    write_csvs(dragged, "P0001")
+    csv = dragged / "P0001.qcpass.csv"
+    csv.unlink()
+    csv.mkdir()
+
+    with caplog.at_level(logging.WARNING):
+        reader = get_reader(dragged)
+
+    assert reader is not None
+    assert [layer_type for _, _, layer_type in reader(dragged)] == ["image", "points"]
+    assert "No QC pass CSV" in caplog.text
+
+
 def test_visualisation_folder_without_same_named_qc_filtering_folder_is_refused(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ):

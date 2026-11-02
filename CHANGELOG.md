@@ -27,6 +27,7 @@ See [looptrace issue 579](https://github.com/gerlichlab/looptrace/issues/579), w
 
 ### Fixed
 * A QC pass or fail CSV with only its header, as when every spot of a field of view passed QC or every one failed, no longer stops the folder from opening with `ValueError: max() iterable argument is empty`. The folder opens with an empty points layer for that file, and the warning names the file.
+* A folder whose `.zarr` is a file is declined, so napari moves on to other readers, and a QC CSV that is a folder is left out, as a missing CSV is. The reader accepted a `.zarr` file and then failed to read it, and failed outright on a CSV folder, with `RuntimeError: Unexpected path!`.
 
 ## [v0.4.0] - 2026-10-13
 
