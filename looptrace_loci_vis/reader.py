@@ -29,6 +29,8 @@ from ._types import (
 from .point_record import PointRecord, expand_along_z
 from .points_parser import HeadedTraceTimePointParser, PointsParser
 
+logger = logging.getLogger(__name__)
+
 
 class QCStatus(Enum):
     """Binary classification of QC status"""
@@ -163,7 +165,7 @@ def _collect_keyed_paths(folder: Path) -> dict[str, list[Path]]:
                 message = f"Accepting data file ({key}): {curr_path}"
             if message is None:
                 raise RuntimeError(f"Unexpected path! {curr_path}")
-            logging.debug(message)
+            logger.debug(message)
             keyed_paths.setdefault(key, []).append(curr_path)
     return keyed_paths
 
@@ -195,7 +197,7 @@ def _find_qc_filtering_folder(folder: Path) -> Optional[Path]:
         return None
     candidates: list[Path] = _qc_filtering_candidates(folder)
     if len(candidates) != 1:
-        logging.debug(
+        logger.debug(
             "Not exactly 1 QC filtering folder, but rather %d, found for %s: %s",
             len(candidates),
             folder,
@@ -270,7 +272,7 @@ def build_single_file_points_layer(path: PathLike) -> PointsLayer:
     # First, determine the parsing strategy based on file header.
     parser: PointsParser[PathLike]
     if _has_header(path):
-        logging.debug("Will parse has having header: %s", path)
+        logger.debug("Will parse has having header: %s", path)
         parser = HeadedTraceTimePointParser
     else:
         raise NotImplementedError(
@@ -278,13 +280,13 @@ def build_single_file_points_layer(path: PathLike) -> PointsLayer:
         )
     # Then, read the data the way its inferred QC status calls for, and pick the point color.
     if qc == QCStatus.PASS:
-        logging.debug("Will parse sas QC-pass: %s", path)
+        logger.debug("Will parse sas QC-pass: %s", path)
         color = PointColor.GOLDENROD
         point_records, center_flags, extra_meta = records_to_qcpass_layer_data(
             parser.parse_all_qcpass(path)
         )
     elif qc == QCStatus.FAIL:
-        logging.debug("Will parse as QC-fail: %s", path)
+        logger.debug("Will parse as QC-fail: %s", path)
         color = PointColor.DEEP_SKY_BLUE
         point_records, center_flags, extra_meta = records_to_qcfail_layer_data(
             parser.parse_all_qcfail(path)
@@ -298,7 +300,7 @@ def build_single_file_points_layer(path: PathLike) -> PointsLayer:
     color_meta = {f"{outline}_color": color.value, "face_color": color.value}
 
     if not point_records:
-        logging.warning("No data rows parsed!")
+        logger.warning("No data rows parsed!")
     shape_meta = {"symbol": ["*" if is_center else "o" for is_center in center_flags]}
     params = {**static_params, **color_meta, **extra_meta, **shape_meta}
 
@@ -346,7 +348,7 @@ def records_to_qcfail_layer_data(
 
 def _do_not_parse(*, path: PathLike, why: str, level: int = logging.DEBUG) -> None:
     """Log a message about why a path can't be parsed."""
-    logging.log(
+    logger.log(
         level,
         "%s, cannot be read as looptrace locus-specific points: %s",
         why,

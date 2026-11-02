@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 * Type-check with `pyright` instead of `mypy`, as looptrace, gertils and spotfishing do. The package is checked strictly and the tests at the standard level.
 * Format at ruff's default line length of 88, where it was 100, as in the other repositories behind looptrace.
+* The reader logs through its module's logger, `looptrace_loci_vis.reader`, instead of the root logger, so that napari or an application can set the plugin's log level apart from its own.
+* ruff 0.7.4 -> 0.17.3 and pyright 1.1.411 -> 1.1.414, the newest releases, as in looptrace, gertils and the other plugins. The configuration names the rules that ruff renamed (`TC002`, `TC003`), no longer names those it removed (`ANN101`, `ANN102`), and ignores two that every rule now brings in: a copyright notice in each file (`CPY001`), as the LICENSE covers them all, and `X | None` for `Optional[X]` (`UP045`), which ruff split out of `UP007`, already ignored. pyright 1.1.414 finds nothing new. The generic parser classes of `looptrace_loci_vis.points_parser` declare their own type parameters, and its module-level type variables, `Input`, `I1` and `I2`, go.
 
 ### Removed
 * Support for Python 3.11. looptrace-loci-vis requires Python 3.12, as gertils v0.8.0 does, and the newest releases of numpy, zarr and numcodecs. looptrace already requires Python 3.12. CI and the Nix shell use Python 3.12, and ruff targets it.
