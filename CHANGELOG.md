@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+* Support for Python 3.13, alongside 3.12. gertils v0.8.0 and the rest of the dependencies allow it, and CI runs the tests, the formatting check and the linting on both versions.
+The lock takes `numpydoc_decorator` 2.3.0 on both, since 2.2.1 declares itself incompatible with 3.13. Nothing resolves differently between the two.
+The Nix shell stays on 3.12, and ruff targets it, as the lower of the two.
+
 ### Changed
 * Depend on `gertils` v0.8.0, which requires zarr 3, and whose `read_zarr` reads zarr format 3 as well as format 2: the plugin opens a locus's images in either format.
 See [looptrace issue 579](https://github.com/gerlichlab/looptrace/issues/579), which moves looptrace to zarr 3.
@@ -18,7 +23,7 @@ See [looptrace issue 579](https://github.com/gerlichlab/looptrace/issues/579), w
 ### Removed
 * The module-level type variables of `looptrace_loci_vis.points_parser`, `Input`, `I1` and `I2`: its generic parser classes declare their own type parameters, as ruff asks for Python 3.12.
 * Support for napari 0.4 on macOS: looptrace-loci-vis allows napari 0.5 to 0.9. napari 0.4.19.post1 requires numpy below 2, while the zarr and numcodecs this release is tested with need numpy 2. looptrace kept napari 0.4.19 by holding numpy below 1.25, which it can't with gertils v0.8.0, as that requires numpy 1.26. The reader passes only the names that napari has used for a point's outline since 0.5, `border_*`, where it chose between them and napari 0.4's `edge_*`.
-* Support for Python 3.11. looptrace-loci-vis requires Python 3.12, as gertils v0.8.0 does, and the newest releases of numpy, zarr and numcodecs. looptrace already requires Python 3.12. CI and the Nix shell use Python 3.12, and ruff targets it.
+* Support for Python 3.11. The floor is Python 3.12, which gertils v0.8.0 and the newest releases of numpy, zarr and numcodecs all need, and which looptrace already requires.
 
 ### Fixed
 * A QC pass or fail CSV with only its header, as when every spot of a field of view passed QC or every one failed, no longer stops the folder from opening with `ValueError: max() iterable argument is empty`. The folder opens with an empty points layer for that file, and the warning names the file.
