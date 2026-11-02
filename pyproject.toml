@@ -32,7 +32,9 @@ gertils = { git = "https://github.com/gerlichlab/gertils.git", tag = "v0.8.0" }
 numpy = "*"
 numpydoc_decorator = ">=2.2.1"
 pandas = "*"
-zarr = ">=2.4.12"
+# The range gertils v0.8.0 requires, from zarr 3.1 to 4; the tests write their stores
+# with zarr 3.
+zarr = ">=3.1,<4"
 
 # OS-specific dependency declarations
 # From 0.4.19, which looptrace uses while it holds numpy below 1.25, to 0.9, which needs numpy 1.25.
