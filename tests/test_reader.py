@@ -33,9 +33,22 @@ QCFAIL_LINES = [
 
 
 def write_zarr(folder: Path, key: str, *, zarr_format: Literal[2, 3] = 2) -> None:
-    """Write the image as looptrace publishes it: a ZARR array inside a folder that is a ZARR group, in zarr format 2."""
+    """Write the image as looptrace publishes it: a ZARR array inside a folder that is a ZARR group.
+
+    The store is in the given zarr format, 2 unless told otherwise.
+    """
     root = zarr.open_group(str(folder), mode="a", zarr_format=zarr_format)
     root.zeros(name=f"{key}.zarr", shape=(1, 1, 2, 12, 24, 24), dtype="uint16")
+
+
+def write_zarr_with_array_at_0(
+    folder: Path, key: str, *, zarr_format: Literal[2, 3]
+) -> None:
+    """Write the image as a ZARR group whose array is its member ``0``, the other layout read."""
+    group = zarr.open_group(
+        str(folder / f"{key}.zarr"), mode="a", zarr_format=zarr_format
+    )
+    group.zeros(name="0", shape=(1, 1, 2, 12, 24, 24), dtype="uint16")
 
 
 def write_csvs(folder: Path, key: str) -> None:
@@ -60,10 +73,13 @@ def test_visualisation_folder_is_read_with_csvs_from_qc_filtering_block(
     assert [layer_type for _, _, layer_type in layers] == ["image", "points", "points"]
 
 
+@pytest.mark.parametrize("zarr_format", [2, 3])
 @pytest.mark.parametrize("key", KEYS)
-def test_folder_holding_all_three_items_is_read(tmp_path: Path, key: str):
+def test_folder_holding_all_three_items_is_read(
+    tmp_path: Path, key: str, zarr_format: Literal[2, 3]
+):
     dragged = tmp_path / key
-    write_zarr(dragged, key)
+    write_zarr(dragged, key, zarr_format=zarr_format)
     write_csvs(dragged, key)
 
     reader = get_reader(dragged)
@@ -71,6 +87,24 @@ def test_folder_holding_all_three_items_is_read(tmp_path: Path, key: str):
     assert reader is not None
     layers = reader(dragged)
     assert [layer_type for _, _, layer_type in layers] == ["image", "points", "points"]
+
+
+@pytest.mark.parametrize("zarr_format", [2, 3])
+def test_zarr_holding_its_array_at_0_is_read(
+    tmp_path: Path, zarr_format: Literal[2, 3]
+):
+    dragged = tmp_path / "P0001"
+    write_zarr_with_array_at_0(dragged, "P0001", zarr_format=zarr_format)
+    write_csvs(dragged, "P0001")
+
+    reader = get_reader(dragged)
+
+    assert reader is not None
+    layers = reader(dragged)
+    assert [layer_type for _, _, layer_type in layers] == ["image", "points", "points"]
+    image_layer = layers[0]
+    assert image_layer[2] == "image"
+    assert image_layer[0].shape == (1, 1, 2, 12, 24, 24)
 
 
 @pytest.mark.parametrize("empty_status", ["pass", "fail"])

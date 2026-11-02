@@ -49,7 +49,7 @@ For each new unit/collection of data to view, you'll need to clear the layers fr
 ### Details and troubleshooting
 * Each image file should have a `.zarr` extension.
 * Each points file should have a `.qc(pass|fail).csv` extension.
-* Each `.zarr` should either have a `.zarray` immediately inside it, or have a single `0` subfolder which has a `.zarray` inside it.
+* Each `.zarr` should either be an array itself, or have a single `0` subfolder that is one. An array in zarr format 3 has a `zarr.json` immediately inside it, and one in zarr format 2 a `.zarray`; the plugin reads both formats.
 * Each points file should have a header, with at least the columns `traceIndex`, `regionIndex`, `timeIndex`, `z`, `y` and `x`, plus `failCode` in the QC-fail file.
 * Ensure that "continuous" rather than "once" is selected for the "auto-contrast" setting in the upper-left area of the Napari window.
 
