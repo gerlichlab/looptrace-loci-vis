@@ -2,11 +2,11 @@
 
 import logging
 from pathlib import Path
+from typing import Literal
 
 import pytest
 import zarr
 
-from looptrace_loci_vis import reader as reader_module
 from looptrace_loci_vis._const import (
     LOCUS_SPOT_QC_FILTERING_BLOCK_SUFFIX as QC_FILTERING_BLOCK_SUFFIX,
 )
@@ -32,10 +32,23 @@ QCFAIL_LINES = [
 ]
 
 
-def write_zarr(folder: Path, key: str) -> None:
-    """Write the image as looptrace publishes it: a ZARR array inside a folder that is a ZARR group."""
-    root = zarr.open_group(str(folder), mode="a")
-    root.zeros(f"{key}.zarr", shape=(1, 1, 2, 12, 24, 24), dtype="uint16")
+def write_zarr(folder: Path, key: str, *, zarr_format: Literal[2, 3] = 2) -> None:
+    """Write the image as looptrace publishes it: a ZARR array inside a folder that is a ZARR group.
+
+    The store is in the given zarr format, 2 unless told otherwise.
+    """
+    root = zarr.open_group(str(folder), mode="a", zarr_format=zarr_format)
+    root.zeros(name=f"{key}.zarr", shape=(1, 1, 2, 12, 24, 24), dtype="uint16")
+
+
+def write_zarr_with_array_at_0(
+    folder: Path, key: str, *, zarr_format: Literal[2, 3]
+) -> None:
+    """Write the image as a ZARR group whose array is its member ``0``, the other layout read."""
+    group = zarr.open_group(
+        str(folder / f"{key}.zarr"), mode="a", zarr_format=zarr_format
+    )
+    group.zeros(name="0", shape=(1, 1, 2, 12, 24, 24), dtype="uint16")
 
 
 def write_csvs(folder: Path, key: str) -> None:
@@ -44,12 +57,13 @@ def write_csvs(folder: Path, key: str) -> None:
     (folder / f"{key}.qcfail.csv").write_text("\n".join(QCFAIL_LINES) + "\n")
 
 
+@pytest.mark.parametrize("zarr_format", [2, 3])
 @pytest.mark.parametrize("key", KEYS)
 def test_visualisation_folder_is_read_with_csvs_from_qc_filtering_block(
-    tmp_path: Path, key: str
+    tmp_path: Path, key: str, zarr_format: Literal[2, 3]
 ):
     dragged = tmp_path / VISUALISATION_BLOCK / key
-    write_zarr(dragged, key)
+    write_zarr(dragged, key, zarr_format=zarr_format)
     write_csvs(tmp_path / QC_FILTERING_BLOCK / key, key)
 
     reader = get_reader(dragged)
@@ -59,10 +73,13 @@ def test_visualisation_folder_is_read_with_csvs_from_qc_filtering_block(
     assert [layer_type for _, _, layer_type in layers] == ["image", "points", "points"]
 
 
+@pytest.mark.parametrize("zarr_format", [2, 3])
 @pytest.mark.parametrize("key", KEYS)
-def test_folder_holding_all_three_items_is_read(tmp_path: Path, key: str):
+def test_folder_holding_all_three_items_is_read(
+    tmp_path: Path, key: str, zarr_format: Literal[2, 3]
+):
     dragged = tmp_path / key
-    write_zarr(dragged, key)
+    write_zarr(dragged, key, zarr_format=zarr_format)
     write_csvs(dragged, key)
 
     reader = get_reader(dragged)
@@ -70,6 +87,67 @@ def test_folder_holding_all_three_items_is_read(tmp_path: Path, key: str):
     assert reader is not None
     layers = reader(dragged)
     assert [layer_type for _, _, layer_type in layers] == ["image", "points", "points"]
+
+
+@pytest.mark.parametrize("zarr_format", [2, 3])
+def test_zarr_holding_its_array_at_0_is_read(
+    tmp_path: Path, zarr_format: Literal[2, 3]
+):
+    dragged = tmp_path / "P0001"
+    write_zarr_with_array_at_0(dragged, "P0001", zarr_format=zarr_format)
+    write_csvs(dragged, "P0001")
+
+    reader = get_reader(dragged)
+
+    assert reader is not None
+    layers = reader(dragged)
+    assert [layer_type for _, _, layer_type in layers] == ["image", "points", "points"]
+    image_layer = layers[0]
+    assert image_layer[2] == "image"
+    assert image_layer[0].shape == (1, 1, 2, 12, 24, 24)
+
+
+@pytest.mark.parametrize("empty_status", ["pass", "fail"])
+def test_qc_csv_with_only_its_header_gives_an_empty_points_layer(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, empty_status: str
+):
+    """A field of view where every spot passed QC, or every spot failed, has a CSV with no rows."""
+    dragged = tmp_path / "P0001"
+    write_zarr(dragged, "P0001")
+    write_csvs(dragged, "P0001")
+    empty_csv = dragged / f"P0001.qc{empty_status}.csv"
+    header = empty_csv.read_text().splitlines()[0]
+    empty_csv.write_text(header + "\n")
+
+    reader = get_reader(dragged)
+
+    assert reader is not None
+    with caplog.at_level(logging.WARNING):
+        layers = reader(dragged)
+    assert [layer_type for _, _, layer_type in layers] == ["image", "points", "points"]
+    # The reader gives the QC-fail layer before the QC-pass one.
+    _, (failures, _, _), (successes, _, _) = layers
+    assert (len(failures) == 0) == (empty_status == "fail")
+    assert (len(successes) == 0) == (empty_status == "pass")
+    assert str(empty_csv) in caplog.text
+
+
+@pytest.mark.parametrize("odd_path", ["zarr_is_a_file", "csv_is_a_folder"])
+def test_folder_with_a_zarr_file_or_a_csv_folder_is_refused(
+    tmp_path: Path, odd_path: str
+):
+    """get_reader is how napari asks whether the plugin reads a path, so it should decline, not fail."""
+    dragged = tmp_path / "P0001"
+    write_csvs(dragged, "P0001")
+    if odd_path == "zarr_is_a_file":
+        (dragged / "P0001.zarr").write_bytes(b"not a ZARR store")
+    else:
+        write_zarr(dragged, "P0001")
+        csv = dragged / "P0001.qcpass.csv"
+        csv.unlink()
+        csv.mkdir()
+
+    assert get_reader(dragged) is None
 
 
 def test_visualisation_folder_without_same_named_qc_filtering_folder_is_refused(
@@ -161,20 +239,8 @@ def test_more_than_one_qc_filtering_block_is_refused(tmp_path: Path):
     assert get_reader(dragged) is None
 
 
-@pytest.mark.parametrize(
-    ("napari_version", "outline"),
-    [
-        ("0.4.19.post1", "edge"),
-        ("0.5.0", "border"),
-        ("0.9.2", "border"),
-        ("1.0.0", "border"),
-    ],
-)
-def test_points_are_outlined_by_the_name_the_installed_napari_uses(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, napari_version: str, outline: str
-):
+def test_points_are_outlined_by_the_names_napari_uses_since_0_5(tmp_path: Path):
     # napari 0.5 renamed the Points layer's edge_* arguments to border_*, and refuses the old ones since.
-    monkeypatch.setattr(reader_module.metadata, "version", lambda _: napari_version)
     dragged = tmp_path / "P0001"
     write_zarr(dragged, "P0001")
     write_csvs(dragged, "P0001")
@@ -182,25 +248,10 @@ def test_points_are_outlined_by_the_name_the_installed_napari_uses(
     reader = get_reader(dragged)
 
     assert reader is not None
-    layers = reader(dragged)
-
-    other = "border" if outline == "edge" else "edge"
-    for _, params, layer_type in layers:
+    for _, params, layer_type in reader(dragged):
         if layer_type != "points":
             continue
-        assert {
-            f"{outline}_width",
-            f"{outline}_width_is_relative",
-            f"{outline}_color",
-        } <= set(params)
-        assert not any(name.startswith(f"{other}_") for name in params)
-
-
-def test_points_use_the_current_names_when_napari_is_not_installed(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    def missing(_: str) -> str:
-        raise reader_module.metadata.PackageNotFoundError("napari")
-
-    monkeypatch.setattr(reader_module.metadata, "version", missing)
-    assert reader_module.points_outline_name() == "border"
+        assert {"border_width", "border_width_is_relative", "border_color"} <= set(
+            params
+        )
+        assert not any(name.startswith("edge_") for name in params)

@@ -2,7 +2,7 @@
 
 import abc
 from collections.abc import Iterable, Sized
-from typing import Generic, Protocol, TypeVar
+from typing import Protocol
 
 import pandas as pd
 from gertils.geometry import ImagePoint3D
@@ -11,10 +11,6 @@ from gertils.types import TraceIdFrom0 as TraceId
 
 from ._types import PathLike, QCFailReasons
 from .point_record import PointRecord
-
-Input = TypeVar("Input", contravariant=True)  # noqa: PLC0105
-I1 = TypeVar("I1")
-I2 = TypeVar("I2", bound=Sized)
 
 
 class MappingLike(Sized, Protocol):  # noqa: D101
@@ -25,7 +21,7 @@ class MappingLike(Sized, Protocol):  # noqa: D101
     def __len__(self) -> int: ...
 
 
-class PointsParser(Protocol, Generic[Input]):
+class PointsParser[Input](Protocol):
     """Something capable of parsing a QC-pass or -fail CSV file"""
 
     @classmethod
@@ -39,7 +35,7 @@ class PointsParser(Protocol, Generic[Input]):
     ) -> list[tuple[PointRecord, QCFailReasons]]: ...
 
 
-class IterativePointsParser(Generic[I1, I2], PointsParser[I1]):
+class IterativePointsParser[I1, I2: Sized](PointsParser[I1]):
     """Something that yields records, each of type I2 from value of type I1, to parse QC-pass/-fail points"""
 
     @classmethod
@@ -73,9 +69,7 @@ class HeadedTraceTimePointParser(IterativePointsParser[PathLike, MappingLike]):
 
     @classmethod
     def _gen_records(cls, data: PathLike) -> Iterable[MappingLike]:
-        # pandas-stubs leaves parts of read_csv's signature and the type of each row unknown.
-        frame: pd.DataFrame = pd.read_csv(data)  # pyright: ignore[reportUnknownMemberType]
-        for _, row in frame.iterrows():  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        for _, row in pd.read_csv(data).iterrows():
             yield row
 
     @classmethod

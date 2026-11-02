@@ -3,7 +3,6 @@
 import logging
 import os
 from enum import Enum
-from importlib import metadata
 from pathlib import Path
 from typing import Optional
 
@@ -28,6 +27,8 @@ from ._types import (
 )
 from .point_record import PointRecord, expand_along_z
 from .points_parser import HeadedTraceTimePointParser, PointsParser
+
+logger = logging.getLogger(__name__)
 
 
 class QCStatus(Enum):
@@ -152,18 +153,22 @@ def _collect_keyed_paths(folder: Path) -> dict[str, list[Path]]:
     """Group the ZARR and QC pass/fail CSV paths directly in the given folder by filename prefix."""
     keyed_paths: dict[str, list[Path]] = {}
     for curr_path in folder.iterdir():
-        message: Optional[str] = None
         for suffix in (".zarr", *(qc.filename_extension for qc in QCStatus)):
             if not curr_path.name.endswith(suffix):
                 continue
             key: str = curr_path.name.removesuffix(suffix)
             if suffix == ".zarr" and curr_path.is_dir():
-                message = f"Accepting ZARR data folder ({key}): {curr_path}"
-            elif curr_path.is_file():
-                message = f"Accepting data file ({key}): {curr_path}"
-            if message is None:
-                raise RuntimeError(f"Unexpected path! {curr_path}")
-            logging.debug(message)
+                logger.debug("Accepting ZARR data folder (%s): %s", key, curr_path)
+            elif suffix != ".zarr" and curr_path.is_file():
+                logger.debug("Accepting data file (%s): %s", key, curr_path)
+            else:
+                # Left out, so that the folder is declined for lacking it, rather than
+                # accepted and then failing to read, or failing to be probed at all.
+                logger.debug(
+                    "Ignoring %s: a ZARR must be a folder and a QC CSV a file",
+                    curr_path,
+                )
+                continue
             keyed_paths.setdefault(key, []).append(curr_path)
     return keyed_paths
 
@@ -195,7 +200,7 @@ def _find_qc_filtering_folder(folder: Path) -> Optional[Path]:
         return None
     candidates: list[Path] = _qc_filtering_candidates(folder)
     if len(candidates) != 1:
-        logging.debug(
+        logger.debug(
             "Not exactly 1 QC filtering folder, but rather %d, found for %s: %s",
             len(candidates),
             folder,
@@ -240,27 +245,11 @@ def _hint_at_the_folder_to_drop(folder: Path) -> Optional[str]:
     return None
 
 
-def points_outline_name() -> str:
-    """What the installed napari calls the outline of a point: 'edge' until 0.4, 'border' from 0.5.
-
-    napari 0.5 renamed the Points layer's ``edge_width``, ``edge_width_is_relative``
-    and ``edge_color`` to ``border_*``, and later releases refuse the old names;
-    0.4 knows only the old ones. Without napari installed, as when this is
-    imported outside a viewer, the current names are used.
-    """
-    try:
-        major, minor = (int(part) for part in metadata.version("napari").split(".")[:2])
-    except (metadata.PackageNotFoundError, ValueError):
-        return "border"
-    return "edge" if (major, minor) < (0, 5) else "border"
-
-
 def build_single_file_points_layer(path: PathLike) -> PointsLayer:
     """Build the parser for a single file (ZARR or CSV relevant for locus points viewing)."""
-    outline = points_outline_name()
     static_params = {
-        f"{outline}_width": 0.1,
-        f"{outline}_width_is_relative": True,
+        "border_width": 0.1,
+        "border_width_is_relative": True,
         "n_dimensional": False,
     }
 
@@ -270,7 +259,7 @@ def build_single_file_points_layer(path: PathLike) -> PointsLayer:
     # First, determine the parsing strategy based on file header.
     parser: PointsParser[PathLike]
     if _has_header(path):
-        logging.debug("Will parse has having header: %s", path)
+        logger.debug("Will parse as having header: %s", path)
         parser = HeadedTraceTimePointParser
     else:
         raise NotImplementedError(
@@ -278,13 +267,13 @@ def build_single_file_points_layer(path: PathLike) -> PointsLayer:
         )
     # Then, read the data the way its inferred QC status calls for, and pick the point color.
     if qc == QCStatus.PASS:
-        logging.debug("Will parse sas QC-pass: %s", path)
+        logger.debug("Will parse as QC-pass: %s", path)
         color = PointColor.GOLDENROD
         point_records, center_flags, extra_meta = records_to_qcpass_layer_data(
             parser.parse_all_qcpass(path)
         )
     elif qc == QCStatus.FAIL:
-        logging.debug("Will parse as QC-fail: %s", path)
+        logger.debug("Will parse as QC-fail: %s", path)
         color = PointColor.DEEP_SKY_BLUE
         point_records, center_flags, extra_meta = records_to_qcfail_layer_data(
             parser.parse_all_qcfail(path)
@@ -295,10 +284,10 @@ def build_single_file_points_layer(path: PathLike) -> PointsLayer:
             f"Despite undertaking parse, file from which QC status could not be parsed was encountered: {path}"
         )
 
-    color_meta = {f"{outline}_color": color.value, "face_color": color.value}
+    color_meta = {"border_color": color.value, "face_color": color.value}
 
     if not point_records:
-        logging.warning("No data rows parsed!")
+        logger.warning("No data rows parsed, so the points layer is empty: %s", path)
     shape_meta = {"symbol": ["*" if is_center else "o" for is_center in center_flags]}
     params = {**static_params, **color_meta, **extra_meta, **shape_meta}
 
@@ -309,7 +298,8 @@ def records_to_qcpass_layer_data(
     records: list[PointRecord],
 ) -> tuple[list[PointRecord], list[bool], LayerParams]:
     """Extend the given records partially through a z-stack, designate appropriately as central-plane or not."""
-    max_z = max(r.point.z for r in records)
+    # A CSV with only its header has no records, and so no maximum.
+    max_z = max((r.point.z for r in records), default=0)
     points: list[PointRecord] = []
     center_flags: list[bool] = []
     for rec in records:
@@ -324,7 +314,8 @@ def records_to_qcfail_layer_data(
     record_qc_pairs: list[tuple[PointRecord, QCFailReasons]],
 ) -> tuple[list[PointRecord], list[bool], LayerParams]:
     """Extend the given records partially through a z-stack, designate appropriately as central-plane or not; also set fail codes text."""
-    max_z = max(r.point.z for r, _ in record_qc_pairs)
+    # A CSV with only its header has no records, and so no maximum.
+    max_z = max((r.point.z for r, _ in record_qc_pairs), default=0)
     points: list[PointRecord] = []
     center_flags: list[bool] = []
     codes: list[QCFailReasons] = []
@@ -346,7 +337,7 @@ def records_to_qcfail_layer_data(
 
 def _do_not_parse(*, path: PathLike, why: str, level: int = logging.DEBUG) -> None:
     """Log a message about why a path can't be parsed."""
-    logging.log(
+    logger.log(
         level,
         "%s, cannot be read as looptrace locus-specific points: %s",
         why,
