@@ -304,7 +304,7 @@ def build_single_file_points_layer(path: PathLike) -> PointsLayer:
     # First, determine the parsing strategy based on file header.
     parser: PointsParser[PathLike]
     if _has_header(path):
-        logger.debug("Will parse has having header: %s", path)
+        logger.debug("Will parse as having header: %s", path)
         parser = HeadedTraceTimePointParser
     else:
         raise NotImplementedError(
@@ -312,7 +312,7 @@ def build_single_file_points_layer(path: PathLike) -> PointsLayer:
         )
     # Then, read the data the way its inferred QC status calls for, and pick the point color.
     if qc == QCStatus.PASS:
-        logger.debug("Will parse sas QC-pass: %s", path)
+        logger.debug("Will parse as QC-pass: %s", path)
         color = PointColor.GOLDENROD
         point_records, center_flags, extra_meta = records_to_qcpass_layer_data(
             parser.parse_all_qcpass(path)
