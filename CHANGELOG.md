@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The usage docs describe the layout looptrace publishes since v0.24.0, where a folder of the locus spot visualisation block, named `P0001` or `P0001.TG_<group>`, holds its QC pass/fail CSVs beside the ZARR. The plugin looks for the CSVs in the QC filtering block, as runs before v0.24.0 need, only when the folder holds none of its own, and a refusal says both places they may be.
 * A refusal for more or fewer than one QC filtering folder names the folders found.
 * The Nix shell works on Ubuntu outside NixOS: it provides zlib and the C++ standard library to the wheels Poetry installs, and Node.js, on which pyright runs (#19).
+* Type-check with `pyright` instead of `mypy`, as looptrace, gertils and spotfishing do. The package is checked strictly and the tests at the standard level.
+* Format at ruff's default line length of 88, where it was 100, as in the other repositories behind looptrace.
 
 ## [v0.4.0] - 2026-10-13
 
