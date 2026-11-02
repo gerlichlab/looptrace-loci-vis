@@ -19,6 +19,9 @@ See [looptrace issue 579](https://github.com/gerlichlab/looptrace/issues/579), w
 * Support for napari 0.4 on macOS: looptrace-loci-vis allows napari 0.5 to 0.9. napari 0.4.19.post1 requires numpy below 2, which the zarr and numcodecs this release is tested with need, and looptrace, which kept napari 0.4.19 by holding numpy below 1.25, can't hold it there with gertils v0.8.0, which requires numpy 1.26. The reader passes only the names that napari has used for a point's outline since 0.5, `border_*`, where it chose between them and napari 0.4's `edge_*`.
 * Support for Python 3.11. looptrace-loci-vis requires Python 3.12, as gertils v0.8.0 does, and the newest releases of numpy, zarr and numcodecs. looptrace already requires Python 3.12. CI and the Nix shell use Python 3.12, and ruff targets it.
 
+### Fixed
+* A QC pass or fail CSV with only its header, as when every spot of a field of view passed QC or every one failed, no longer stops the folder from opening with `ValueError: max() iterable argument is empty`. The folder opens with an empty points layer for that file, and the warning names the file.
+
 ## [v0.4.0] - 2026-10-13
 
 ### Changed

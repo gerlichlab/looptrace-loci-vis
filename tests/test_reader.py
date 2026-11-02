@@ -73,6 +73,31 @@ def test_folder_holding_all_three_items_is_read(tmp_path: Path, key: str):
     assert [layer_type for _, _, layer_type in layers] == ["image", "points", "points"]
 
 
+@pytest.mark.parametrize("empty_status", ["pass", "fail"])
+def test_qc_csv_with_only_its_header_gives_an_empty_points_layer(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, empty_status: str
+):
+    """A field of view where every spot passed QC, or every spot failed, has a CSV with no rows."""
+    dragged = tmp_path / "P0001"
+    write_zarr(dragged, "P0001")
+    write_csvs(dragged, "P0001")
+    empty_csv = dragged / f"P0001.qc{empty_status}.csv"
+    header = empty_csv.read_text().splitlines()[0]
+    empty_csv.write_text(header + "\n")
+
+    reader = get_reader(dragged)
+
+    assert reader is not None
+    with caplog.at_level(logging.WARNING):
+        layers = reader(dragged)
+    assert [layer_type for _, _, layer_type in layers] == ["image", "points", "points"]
+    # The reader gives the QC-fail layer before the QC-pass one.
+    _, (failures, _, _), (successes, _, _) = layers
+    assert (len(failures) == 0) == (empty_status == "fail")
+    assert (len(successes) == 0) == (empty_status == "pass")
+    assert str(empty_csv) in caplog.text
+
+
 def test_visualisation_folder_without_same_named_qc_filtering_folder_is_refused(
     tmp_path: Path,
 ):

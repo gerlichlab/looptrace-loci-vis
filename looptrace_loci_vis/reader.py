@@ -283,7 +283,7 @@ def build_single_file_points_layer(path: PathLike) -> PointsLayer:
     color_meta = {"border_color": color.value, "face_color": color.value}
 
     if not point_records:
-        logger.warning("No data rows parsed!")
+        logger.warning("No data rows parsed, so the points layer is empty: %s", path)
     shape_meta = {"symbol": ["*" if is_center else "o" for is_center in center_flags]}
     params = {**static_params, **color_meta, **extra_meta, **shape_meta}
 
@@ -294,7 +294,8 @@ def records_to_qcpass_layer_data(
     records: list[PointRecord],
 ) -> tuple[list[PointRecord], list[bool], LayerParams]:
     """Extend the given records partially through a z-stack, designate appropriately as central-plane or not."""
-    max_z = max(r.point.z for r in records)
+    # A CSV with only its header has no records, and so no maximum.
+    max_z = max((r.point.z for r in records), default=0)
     points: list[PointRecord] = []
     center_flags: list[bool] = []
     for rec in records:
@@ -309,7 +310,8 @@ def records_to_qcfail_layer_data(
     record_qc_pairs: list[tuple[PointRecord, QCFailReasons]],
 ) -> tuple[list[PointRecord], list[bool], LayerParams]:
     """Extend the given records partially through a z-stack, designate appropriately as central-plane or not; also set fail codes text."""
-    max_z = max(r.point.z for r, _ in record_qc_pairs)
+    # A CSV with only its header has no records, and so no maximum.
+    max_z = max((r.point.z for r, _ in record_qc_pairs), default=0)
     points: list[PointRecord] = []
     center_flags: list[bool] = []
     codes: list[QCFailReasons] = []
