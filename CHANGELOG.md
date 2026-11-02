@@ -16,6 +16,7 @@ See [looptrace issue 579](https://github.com/gerlichlab/looptrace/issues/579), w
 * ruff 0.7.4 -> 0.17.3 and pyright 1.1.411 -> 1.1.414, the newest releases, as in looptrace, gertils and the other plugins. The configuration names the rules that ruff renamed (`TC002`, `TC003`), no longer names those it removed (`ANN101`, `ANN102`), and ignores two that every rule now brings in: a copyright notice in each file (`CPY001`), as the LICENSE covers them all, and `X | None` for `Optional[X]` (`UP045`), which ruff split out of `UP007`, already ignored. pyright 1.1.414 finds nothing new. The generic parser classes of `looptrace_loci_vis.points_parser` declare their own type parameters, and its module-level type variables, `Input`, `I1` and `I2`, go.
 
 ### Removed
+* Support for napari 0.4 on macOS: looptrace-loci-vis allows napari 0.5 to 0.9. napari 0.4.19.post1 requires numpy below 2, which the zarr and numcodecs this release is tested with need, and looptrace, which kept napari 0.4.19 by holding numpy below 1.25, can't hold it there with gertils v0.8.0, which requires numpy 1.26. The reader passes only the names that napari has used for a point's outline since 0.5, `border_*`, where it chose between them and napari 0.4's `edge_*`.
 * Support for Python 3.11. looptrace-loci-vis requires Python 3.12, as gertils v0.8.0 does, and the newest releases of numpy, zarr and numcodecs. looptrace already requires Python 3.12. CI and the Nix shell use Python 3.12, and ruff targets it.
 
 ## [v0.4.0] - 2026-10-13
