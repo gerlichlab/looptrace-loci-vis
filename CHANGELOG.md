@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+* Depend on `gertils` v0.8.0, which requires zarr 3, and whose `read_zarr` reads zarr format 3 as well as format 2: the plugin opens a locus's images in either format.
+See [looptrace issue 579](https://github.com/gerlichlab/looptrace/issues/579), which moves looptrace to zarr 3.
 * Type-check with `pyright` instead of `mypy`, as looptrace, gertils and spotfishing do. The package is checked strictly and the tests at the standard level.
 * Format at ruff's default line length of 88, where it was 100, as in the other repositories behind looptrace.
 * The reader logs through its module's logger, `looptrace_loci_vis.reader`, instead of the root logger, so that napari or an application can set the plugin's log level apart from its own.

@@ -2,6 +2,7 @@
 
 import logging
 from pathlib import Path
+from typing import Literal
 
 import pytest
 import zarr
@@ -32,10 +33,10 @@ QCFAIL_LINES = [
 ]
 
 
-def write_zarr(folder: Path, key: str) -> None:
-    """Write the image as looptrace publishes it: a ZARR array inside a folder that is a ZARR group."""
-    root = zarr.open_group(str(folder), mode="a")
-    root.zeros(f"{key}.zarr", shape=(1, 1, 2, 12, 24, 24), dtype="uint16")
+def write_zarr(folder: Path, key: str, *, zarr_format: Literal[2, 3] = 2) -> None:
+    """Write the image as looptrace publishes it: a ZARR array inside a folder that is a ZARR group, in zarr format 2."""
+    root = zarr.open_group(str(folder), mode="a", zarr_format=zarr_format)
+    root.zeros(name=f"{key}.zarr", shape=(1, 1, 2, 12, 24, 24), dtype="uint16")
 
 
 def write_csvs(folder: Path, key: str) -> None:
@@ -44,12 +45,13 @@ def write_csvs(folder: Path, key: str) -> None:
     (folder / f"{key}.qcfail.csv").write_text("\n".join(QCFAIL_LINES) + "\n")
 
 
+@pytest.mark.parametrize("zarr_format", [2, 3])
 @pytest.mark.parametrize("key", KEYS)
 def test_visualisation_folder_is_read_with_csvs_from_qc_filtering_block(
-    tmp_path: Path, key: str
+    tmp_path: Path, key: str, zarr_format: Literal[2, 3]
 ):
     dragged = tmp_path / VISUALISATION_BLOCK / key
-    write_zarr(dragged, key)
+    write_zarr(dragged, key, zarr_format=zarr_format)
     write_csvs(tmp_path / QC_FILTERING_BLOCK / key, key)
 
     reader = get_reader(dragged)

@@ -28,7 +28,7 @@ looptrace-loci-vis = "looptrace_loci_vis:napari.yaml"
 [tool.poetry.dependencies]
 python = ">=3.12,<3.13"
 expression = ">=5.0.2"
-gertils = { git = "https://github.com/gerlichlab/gertils.git", tag = "v0.7.0" }
+gertils = { git = "https://github.com/gerlichlab/gertils.git", tag = "v0.8.0" }
 numpy = "*"
 numpydoc_decorator = ">=2.2.1"
 pandas = "*"
