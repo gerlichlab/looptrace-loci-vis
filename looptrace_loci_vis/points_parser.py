@@ -69,9 +69,7 @@ class HeadedTraceTimePointParser(IterativePointsParser[PathLike, MappingLike]):
 
     @classmethod
     def _gen_records(cls, data: PathLike) -> Iterable[MappingLike]:
-        # pandas-stubs leaves parts of read_csv's signature and the type of each row unknown.
-        frame: pd.DataFrame = pd.read_csv(data)  # pyright: ignore[reportUnknownMemberType]
-        for _, row in frame.iterrows():  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        for _, row in pd.read_csv(data).iterrows():
             yield row
 
     @classmethod
