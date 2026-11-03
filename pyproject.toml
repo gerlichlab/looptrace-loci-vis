@@ -31,7 +31,6 @@ python = ">=3.12,<3.14"
 expression = ">=5.0.2"
 gertils = { git = "https://github.com/gerlichlab/gertils.git", tag = "v0.8.0" }
 numpy = "*"
-numpydoc_decorator = ">=2.2.1"
 pandas = "*"
 
 # OS-specific dependency declarations
@@ -93,12 +92,6 @@ reportUnnecessaryTypeIgnoreComment = "error"
 target-version = "py312"
 
 [tool.ruff.lint.per-file-ignores]
-"typings/*" = [
-    # Stubs copy the signatures of third-party code, which we can't change.
-    "FBT001",  # Boolean-typed positional argument in function definition
-    "FBT002",  # Boolean default positional argument in function definition
-    "PLR0913",  # Too many arguments in function definition
-]
 "tests/*.py" = [
     "INP001", # part of an implicit namespace package
     "D103", # Missing docstring in public function
