@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.6.0] - 2026-11-04
+
+### Added
+* Support for Python 3.14, alongside 3.12 and 3.13, as gertils v0.9.0 allows it. CI runs the tests, the formatting check and the linting on all three. The Nix shell stays on 3.12, and ruff targets it, as the lowest.
+* Support for napari 0.10 on macOS: the plugin allows napari 0.5 to 0.10. In napari 0.10, a folder opens with its image and both points layers, on Python 3.12 and 3.14.
+
+### Changed
+* Depend on `gertils` v0.9.0, which no longer depends on numpydoc_decorator and allows Python 3.14.
+* The lock is updated to the newest releases, among them napari 0.10.0, npe2 0.10.1, PyQt6 6.12 and pytest 9.2. The optional `dev` dependency group goes: nothing installed it, but its `pytest = "^7.2.0"` held the lock, and so the tests in CI, at pytest 7.4, from before Python 3.13 and 3.14.
+* CI caches each job's environment on macOS and Windows too, where the cache held nothing: Poetry makes the environment in the checkout, as `.venv`, which is at the same path on every operating system. The cache is keyed by the full Python version, such as 3.12.11, instead of 3.12, since an environment points at the Python that made it, which the runner drops when its image moves to the next patch release.
+
+### Removed
+* The dependency on numpydoc_decorator, whose newest release allows only Python below 3.14. See [looptrace issue 584](https://github.com/gerlichlab/looptrace/issues/584). Each docstring its `@doc` wrote when a module was imported is now written in the source, so ruff's docstring rules check it and an editor shows it. A test checks what `@doc` checked as it wrote them: that each Parameters section names the parameters, or a dataclass's fields, in order, with their defaults. One summary that `@doc` wrapped over two lines takes one line. Where `@doc` expanded a type from an annotation into a long string, the docstring names the type alias from `_types.py` instead: `PathOrPaths` for `get_reader`'s path, `Reader or None` for what it returns, and `FlatPointRecord` for what `PointRecord.flatten` returns. `PointRecord.flatten` gets back the summary written in its source, "Create a simple list of components, as a row of layer data.", which `@doc` had replaced with "Flatten.", and keeps the Returns section `@doc` wrote. The type information for numpydoc_decorator in `typings/` goes too. With gertils v0.9.0, which drops it too, it leaves the lock.
+
 ## [v0.5.0] - 2026-11-02
 
 ### Added

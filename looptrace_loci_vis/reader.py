@@ -9,7 +9,6 @@ from typing import Optional
 from expression import Option
 from expression.collections.seq import choose
 from gertils.zarr_tools import read_zarr
-from numpydoc_decorator import doc
 
 from ._const import (
     LOCUS_SPOT_QC_FILTERING_BLOCK_SUFFIX,
@@ -55,15 +54,26 @@ class QCStatus(Enum):
         return f".qc{self.value}.csv"
 
 
-@doc(
-    summary="Read and display locus-specific spots from looptrace.",
-    parameters=dict(path="Path from which to parse layers"),
-    raises=dict(
-        RuntimeError="If collection of QC statuses inferred from files doesn't make sense"
-    ),
-    returns="A function to create layers from folder path, if folder path is parsable",
-)
-def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0911, PLR0912
+def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: C901, PLR0911, PLR0912
+    """Read and display locus-specific spots from looptrace.
+
+    Parameters
+    ----------
+    path : PathOrPaths
+        Path from which to parse layers.
+
+    Returns
+    -------
+    Reader or None
+        A function to create layers from folder path, if folder path is
+        parsable.
+
+    Raises
+    ------
+    RuntimeError
+        If collection of QC statuses inferred from files doesn't make sense.
+
+    """
     if isinstance(path, str):
         path = Path(path)
     if not isinstance(path, Path):

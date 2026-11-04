@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "looptrace-loci-vis"
-version = "0.5.0"
+version = "0.6.0"
 description = "This project facilitates viewing, in `napari`, locus-specific spots from `looptrace`."
 authors = ["Vince Reuter"]
 license = "MIT"
@@ -15,6 +15,7 @@ classifiers = [
   "Operating System :: Microsoft :: Windows",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Topic :: Scientific/Engineering :: Bio-Informatics",
   "Typing :: Typed",
 ]
@@ -27,24 +28,17 @@ build-backend = "poetry.core.masonry.api"
 looptrace-loci-vis = "looptrace_loci_vis:napari.yaml"
 
 [tool.poetry.dependencies]
-python = ">=3.12,<3.14"
+python = ">=3.12,<3.15"
 expression = ">=5.0.2"
-gertils = { git = "https://github.com/gerlichlab/gertils.git", tag = "v0.8.0" }
+gertils = { git = "https://github.com/gerlichlab/gertils.git", tag = "v0.9.0" }
 numpy = "*"
-numpydoc_decorator = ">=2.2.1"
 pandas = "*"
 
 # OS-specific dependency declarations
-# From 0.5, which names a point's outline border_* rather than edge_*, to 0.9. napari 0.4
+# From 0.5, which names a point's outline border_* rather than edge_*, to 0.10. napari 0.4
 # requires numpy below 2, which the locked zarr and numcodecs need.
-napari = { version = ">=0.5,<0.10", markers = "sys_platform == 'darwin'" }
+napari = { version = ">=0.5,<0.11", markers = "sys_platform == 'darwin'" }
 pyqt6 = { version = ">=6.5.0", markers = "sys_platform == 'darwin'" }
-
-[tool.poetry.group.dev]
-optional = true
-
-[tool.poetry.group.dev.dependencies]
-pytest = "^7.2.0"
 
 [tool.poetry.group.formatting]
 optional = true
@@ -93,12 +87,6 @@ reportUnnecessaryTypeIgnoreComment = "error"
 target-version = "py312"
 
 [tool.ruff.lint.per-file-ignores]
-"typings/*" = [
-    # Stubs copy the signatures of third-party code, which we can't change.
-    "FBT001",  # Boolean-typed positional argument in function definition
-    "FBT002",  # Boolean default positional argument in function definition
-    "PLR0913",  # Too many arguments in function definition
-]
 "tests/*.py" = [
     "INP001", # part of an implicit namespace package
     "D103", # Missing docstring in public function
