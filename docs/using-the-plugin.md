@@ -24,9 +24,9 @@ Dragging the QC filtering block's folder, or a whole block folder, loads no laye
 
 #### From any other folder
 A folder can instead hold all __3 items__ itself:
-    * ZARR (folder) array with name matching the folder it's in (up to the `.zarr` extension)
-    * `*.qcfail.csv`: CSV file with coordinate of spot fit centers, and column encoding QC fail reasons
-    * `*.qcpass.csv`: same as QC fail file, but without column for failures
+* ZARR (folder) array with name matching the folder it's in (up to the `.zarr` extension)
+* `*.qcfail.csv`: CSV file with coordinate of spot fit centers, and column encoding QC fail reasons
+* `*.qcpass.csv`: same as QC fail file, but without column for failures
 
 The prefixes of these filenames must match the name of the folder they're in.
 
