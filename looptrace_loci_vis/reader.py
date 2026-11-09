@@ -76,7 +76,7 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0
     # A folder in looptrace's locus spot visualisation block holds only the ZARR;
     # the QC pass/fail CSVs are in the same-named folder of the QC filtering block.
     if _looks_like_nested_block_and_qc_structure(path):
-        match _find_qc_filtering_folder(path):
+        match _find_qc_filtering_folder(path):  # pyright: ignore[reportMatchNotExhaustive]
             case result.Result(tag="error", error=err_msg):
                 why = _hint_at_the_folder_to_drop(path, err_msg)
                 return _do_not_parse(path=path, why=why)
@@ -92,15 +92,15 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0
                     why=f"Key ({key}) derived from folder contents doesn't match path name ({path.name})",
                 )
 
-            path_by_status = dict(
+            path_by_status: dict[QCStatus, Path] = dict(
                 choose(
-                    lambda fp: Option.of_optional(QCStatus.from_csv_path(fp)).map(
+                    lambda fp: Option.of_optional(QCStatus.from_csv_path(fp)).map(  # pyright: ignore[reportArgumentType]
                         lambda status: (status, fp)
                     )
                 )(files)
             )
-            fail_path: Option[Path] = Option.Nothing()
-            pass_path: Option[Path] = Option.Nothing()
+            fail_path: Option[Path] = Option.Nothing()  # pyright: ignore[reportUnknownVariableType]
+            pass_path: Option[Path] = Option.Nothing()  # pyright: ignore[reportUnknownVariableType]
             try:
                 fail_path = Option.Some(path_by_status.pop(QCStatus.FAIL))
             except KeyError:
@@ -116,7 +116,9 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0
                 raise RuntimeError(f"Extra QC status/path pairs! {path_by_status}")
             # Now there should be exactly the single .zarr path remaining.
             match [
-                f for f in files if f not in choose(identity)([fail_path, pass_path])
+                f
+                for f in files
+                if f not in choose(identity)([fail_path, pass_path])  # pyright: ignore[reportArgumentType]
             ]:
                 case [potential_zarr]:
                     if (
@@ -127,18 +129,18 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0
                             path=path, why=f"Could not find ZARR for key '{key}'"
                         )
 
-                    def parse(_):
+                    def parse(_: PathOrPaths) -> list[ImageLayer | PointsLayer]:
                         image_layer: ImageLayer = (
                             read_zarr(potential_zarr),
                             {},
                             "image",
                         )
-                        maybe_layers = [
+                        maybe_layers: list[Option[ImageLayer | PointsLayer]] = [
                             Option.Some(image_layer),
                             fail_path.map(build_single_file_points_layer),
                             pass_path.map(build_single_file_points_layer),
                         ]
-                        return choose(identity)(maybe_layers)
+                        return choose(identity)(maybe_layers)  # pyright: ignore[reportReturnType, reportArgumentType, reportUnknownVariableType]
 
                     return parse
                 case []:
@@ -207,14 +209,14 @@ def _find_qc_filtering_folder(folder: Path) -> Result[Path, str]:
     # with the suffixes swapped; it is left out so there is one story and one set
     # of failure modes, and a QC filtering folder gets told where to go instead.
     if not _looks_like_nested_block_and_qc_structure(folder):
-        return Result.Error(
+        return Result.Error(  # pyright: ignore[reportUnknownVariableType]
             f"Folder is not under a visualisation block (suffix {LOCUS_SPOT_VISUALISATION_BLOCK_SUFFIX})"
         )
     match _qc_filtering_candidates(folder):
         case [unique_match]:
-            return Result.Ok(unique_match)
+            return Result.Ok(unique_match)  # pyright: ignore[reportUnknownVariableType]
         case matches:
-            return Result.Error(
+            return Result.Error(  # pyright: ignore[reportUnknownVariableType]
                 f"Not exactly 1 QC filtering folder, but rather {len(matches)}, found for {folder}: {matches}"
             )
 
@@ -233,7 +235,7 @@ def _hint_at_the_folder_to_drop(folder: Path, basic_reason: str) -> str:
     click first.
     """
     parent: str = folder.parent.name
-    maybe_hint: Option[str] = Option.Nothing()
+    maybe_hint: Option[str] = Option.Nothing()  # pyright: ignore[reportUnknownVariableType]
     if parent.endswith(LOCUS_SPOT_QC_FILTERING_BLOCK_SUFFIX):
         maybe_hint = Option.Some(
             "This is the QC filtering folder, which holds only the CSVs; drop the"

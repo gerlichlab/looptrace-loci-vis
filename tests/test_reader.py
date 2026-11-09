@@ -215,9 +215,12 @@ def test_qc_filtering_block_is_not_searched_from_outside_visualisation_block(
     write_zarr(dragged, "P0001__Chr2a")
     write_csvs(tmp_path / QC_FILTERING_BLOCK / "P0001__Chr2a", "P0001__Chr2a")
 
-    reader = get_reader(dragged)
-    layers = reader(dragged)
-    assert [layer_type for _, _, layer_type in layers] == ["image"]
+    match get_reader(dragged):
+        case None:
+            pytest.fail("Failed to create reader")
+        case reader:
+            layers = reader(dragged)
+            assert [layer_type for _, _, layer_type in layers] == ["image"]
 
 
 def test_more_than_one_qc_filtering_block_is_refused(
