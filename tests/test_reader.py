@@ -74,9 +74,7 @@ def test_visualisation_with_no_qc_filtering_folder_is_not_read(
 
     with caplog.at_level(logging.DEBUG):
         assert get_reader(dragged) is None
-    exp_msg = (
-        f"Not exactly 1 QC filtering folder, but rather 0, found for {dragged}: []"
-    )
+    exp_msg = f"Not exactly 1 QC filtering folder, but rather 0, found for {dragged}"
     assert exp_msg in caplog.text
 
 
@@ -135,9 +133,7 @@ def test_visualisation_folder_without_same_named_qc_filtering_folder_is_refused(
 
     with caplog.at_level(logging.DEBUG):
         assert get_reader(dragged) is None
-    exp_msg = (
-        f"Not exactly 1 QC filtering folder, but rather 0, found for {dragged}: []"
-    )
+    exp_msg = f"Not exactly 1 QC filtering folder, but rather 0, found for {dragged}"
     assert exp_msg in caplog.text
 
 

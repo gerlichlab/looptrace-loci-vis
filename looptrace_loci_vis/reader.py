@@ -217,7 +217,7 @@ def _find_qc_filtering_folder(folder: Path) -> Result[Path, str]:
             return Result.Ok(unique_match)  # pyright: ignore[reportUnknownVariableType]
         case matches:
             return Result.Error(  # pyright: ignore[reportUnknownVariableType]
-                f"Not exactly 1 QC filtering folder, but rather {len(matches)}, found for {folder}: {matches}"
+                f"Not exactly 1 QC filtering folder, but rather {len(matches)}, found for {folder}: {', '.join(map(str, matches))}"
             )
 
 
