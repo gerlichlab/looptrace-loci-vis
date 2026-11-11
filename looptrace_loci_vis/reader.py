@@ -73,9 +73,16 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0
         return _do_not_parse(path=path, why="Not a folder/directory")
 
     keyed_paths: dict[str, list[Path]] = _collect_keyed_paths(path)
-    # A folder in looptrace's locus spot visualisation block holds only the ZARR;
-    # the QC pass/fail CSVs are in the same-named folder of the QC filtering block.
-    if _looks_like_nested_block_and_qc_structure(path):
+    # A folder in looptrace's locus spot visualisation block holds the ZARR and, since
+    # looptrace v0.24.0, the QC pass/fail CSVs too. Before that, the CSVs were in the
+    # same-named folder of the QC filtering block, so they're looked for there only
+    # when the folder holds none of its own.
+    holds_qc_csvs: bool = any(
+        QCStatus.from_csv_path(fp) is not None
+        for fps in keyed_paths.values()
+        for fp in fps
+    )
+    if not holds_qc_csvs and _looks_like_nested_block_and_qc_structure(path):
         match _find_qc_filtering_folder(path):  # pyright: ignore[reportMatchNotExhaustive]
             case result.Result(tag="error", error=err_msg):
                 why = _hint_at_the_folder_to_drop(path, err_msg)
@@ -114,6 +121,23 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0
             ):  # after popping out the required key-value pairs
                 # This would imply that a status other than PASS or FAIL had been found.
                 raise RuntimeError(f"Extra QC status/path pairs! {path_by_status}")
+            if fail_path.is_none() and pass_path.is_none():
+                # A ZARR alone is no locus-spot folder: there would be no points to show.
+                why = _hint_at_the_folder_to_drop(
+                    path, f"Neither a QC pass nor a QC fail CSV found for key '{key}'"
+                )
+                return _do_not_parse(path=path, why=why)
+            # looptrace writes no CSV for a status no spot has, such as QC fail when every
+            # spot of the field of view passed. Without a warning, the missing layer would
+            # look like that, whatever the reason the CSV is missing.
+            for status, csv in ((QCStatus.FAIL, fail_path), (QCStatus.PASS, pass_path)):
+                if csv.is_none():
+                    logging.warning(
+                        "No QC %s CSV, so no layer of QC-%s points: %s",
+                        status.value,
+                        status.value,
+                        path,
+                    )
             # Now there should be exactly the single .zarr path remaining.
             match [
                 f
@@ -224,10 +248,11 @@ def _find_qc_filtering_folder(folder: Path) -> Result[Path, str]:
 def _hint_at_the_folder_to_drop(folder: Path, basic_reason: str) -> str:
     """Name the folder to drop, when the one dropped is the wrong half of a pair.
 
-    One field of view's data is split across two looptrace blocks: the image in
-    ``*_LOCUS_SPOT_VISUALISATION``, and the QC pass/fail CSVs in the same-named
-    folder under ``*_LOCUS_SPOT_QC_FILTERING``. Only the visualisation folder can
-    be dropped, because only that direction is searched.
+    Before looptrace v0.24.0, one field of view's data was split across two blocks:
+    the image in ``*_LOCUS_SPOT_VISUALISATION``, and the QC pass/fail CSVs in the
+    same-named folder under ``*_LOCUS_SPOT_QC_FILTERING``. Only the visualisation
+    folder can be dropped, because only that direction is searched. Since v0.24.0,
+    the visualisation folder holds the CSVs as well.
 
     Without this, both halves refuse with "Not exactly 3 files", which is true of
     either and says nothing about which one to use. That matters most for the QC
@@ -250,7 +275,8 @@ def _hint_at_the_folder_to_drop(folder: Path, basic_reason: str) -> str:
             else f"but {len(candidates)} do: {', '.join(c.parent.name for c in candidates)}"
         )
         maybe_hint = Option.Some(
-            "The QC pass/fail CSVs are not here but in the QC filtering block:"
+            "The QC pass/fail CSVs are neither here, where looptrace v0.24.0 and later"
+            " publishes them, nor in the QC filtering block, where earlier releases did:"
             f" exactly one {LOCUS_SPOT_QC_FILTERING_BLOCK_SUFFIX} block holding a"
             f" '{folder.name}' folder must sit beside '{parent}', {found}"
         )

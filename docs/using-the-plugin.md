@@ -5,31 +5,37 @@ First, check the general information about [installation and environment](./READ
 To visualise the locus spots, you need to __drag-and-drop a _folder___ into an active Napari window.
 
 #### From a `looptrace` run
-Drag __one FOV and region's folder__ from the locus spot visualisation block:
+Drag __one field of view's folder__ from the locus spot visualisation block:
 ```text
-Analysis_NNN_<timestamp>/B19_LOCUS_SPOT_VISUALISATION/P0001__Chr2a/
+Analysis_NNN_<timestamp>/B19_LOCUS_SPOT_VISUALISATION/P0001/
 ```
-Folders are named `<fov>__<region name>`, or just `<fov>__` (e.g., `P0001__`) when the region has no name.
+Since looptrace v0.24.0, folders are named after the field of view, `P0001`, or `P0001.TG_<group>` for each trace group, and each holds the image and its QC pass/fail CSVs:
+```text
+Analysis_NNN_<timestamp>/B19_LOCUS_SPOT_VISUALISATION/P0001/P0001.zarr
+                                                           P0001.qcpass.csv
+                                                           P0001.qcfail.csv
+```
+looptrace writes no CSV for a QC status that no spot has: a field of view whose spots all passed QC has no `.qcfail.csv`. The folder opens with the layers for the CSVs it has, and a warning names each CSV that's missing.
 
-That folder holds only the image, `P0001__Chr2a.zarr`. The QC pass/fail CSVs are published by a different block, so the plugin reads them from the folder of the same name in the QC filtering block of the same analysis folder:
+Before v0.24.0, folders were named `<fov>__<region name>`, or just `<fov>__` (e.g., `P0001__`) when the region had no name, and held only the image. The QC pass/fail CSVs were published by a different block, so when the folder holds no CSV of its own, the plugin reads them from the folder of the same name in the QC filtering block of the same analysis folder:
 ```text
 Analysis_NNN_<timestamp>/
 ├── B17_LOCUS_SPOT_QC_FILTERING/P0001__Chr2a/P0001__Chr2a.qcpass.csv
 │                                            P0001__Chr2a.qcfail.csv
 └── B19_LOCUS_SPOT_VISUALISATION/P0001__Chr2a/P0001__Chr2a.zarr
 ```
-The blocks are matched by the end of their names (`_LOCUS_SPOT_VISUALISATION`, `_LOCUS_SPOT_QC_FILTERING`), not by their numbers. If you copy the data elsewhere, keep both block folders side by side.
+The blocks are matched by the end of their names (`_LOCUS_SPOT_VISUALISATION`, `_LOCUS_SPOT_QC_FILTERING`), not by their numbers. If you copy such data elsewhere, keep both block folders side by side.
 
 Dragging the QC filtering block's folder, or a whole block folder, loads no layers.
 
 #### From any other folder
-A folder can instead hold all __3 items__ itself:
+A folder can instead hold the items itself:
 * ZARR (folder) array with name matching the folder it's in (up to the `.zarr` extension)
 * `*.qcfail.csv`: CSV file with coordinate of spot fit centers, and column encoding QC fail reasons
 * `*.qcpass.csv`: same as QC fail file, but without column for failures
 
-The prefixes of these filenames must match the name of the folder they're in. 
-If either CSVs is missing (e.g., there were no QC-fail spots), the plugin will still work, parsing only what's available.
+The prefixes of these filenames must match the name of the folder they're in.
+Either CSV may be missing, but not both: a folder holding only a ZARR is refused, as it has no points to show.
 
 For the image layer, you'll want to select "continuous" rather than "once" for the "auto-contrast" setting in the upper-left area of the Napari window. 
 For each new unit/collection of data to view, you'll need to clear the layers from the active Napari window, then drag in the next folder.

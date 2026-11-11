@@ -18,8 +18,11 @@ from looptrace_loci_vis.reader import QCStatus, get_reader
 VISUALISATION_BLOCK = "B19_LOCUS_SPOT_VISUALISATION"
 QC_FILTERING_BLOCK = "B17_LOCUS_SPOT_QC_FILTERING"
 
-# The folder name is <fov>__<region name>, and just <fov>__ when the region has no name.
+# Before looptrace v0.24.0, the folder name is <fov>__<region name>, and just <fov>__
+# when the region has no name.
 KEYS = ["P0001__Chr2a", "P0001__"]
+# From looptrace v0.24.0, the folder name is <fov>, and <fov>.TG_<group> for a trace group.
+CURRENT_KEYS = ["P0001", "P0001.TG_g"]
 
 
 CSV_LINES = {
@@ -81,8 +84,8 @@ def test_visualisation_with_no_qc_filtering_folder_is_not_read(
 @pytest.mark.parametrize("key", KEYS)
 @pytest.mark.parametrize(
     "fail_statuses_to_write",
-    [[], [QCStatus.PASS], [QCStatus.FAIL], [QCStatus.PASS, QCStatus.FAIL]],
-    ids=["none", "pass-only", "fail-only", "pass-and-fail"],
+    [[QCStatus.PASS], [QCStatus.FAIL], [QCStatus.PASS, QCStatus.FAIL]],
+    ids=["pass-only", "fail-only", "pass-and-fail"],
 )
 def test_visualisation_folder_with_csvs_from_qc_filtering_block_is_read(
     tmp_path: Path, key: str, fail_statuses_to_write: list[QCStatus]
@@ -105,8 +108,8 @@ def test_visualisation_folder_with_csvs_from_qc_filtering_block_is_read(
 @pytest.mark.parametrize("key", KEYS)
 @pytest.mark.parametrize(
     "fail_statuses_to_write",
-    [[], [QCStatus.PASS], [QCStatus.FAIL], [QCStatus.PASS, QCStatus.FAIL]],
-    ids=["none", "pass-only", "fail-only", "pass-and-fail"],
+    [[QCStatus.PASS], [QCStatus.FAIL], [QCStatus.PASS, QCStatus.FAIL]],
+    ids=["pass-only", "fail-only", "pass-and-fail"],
 )
 def test_folder_directly_containing_zarr_any_nonempty_subset_of_expected_csvs_is_read(
     tmp_path: Path, key: str, fail_statuses_to_write: list[QCStatus]
@@ -122,6 +125,89 @@ def test_folder_directly_containing_zarr_any_nonempty_subset_of_expected_csvs_is
     layers = reader(dragged)
     expected_layer_types = get_expected_layer_types(fail_statuses_to_write)
     assert [layer_type for _, _, layer_type in layers] == expected_layer_types
+
+
+@pytest.mark.parametrize("key", CURRENT_KEYS)
+@pytest.mark.parametrize(
+    "statuses_to_write",
+    [[QCStatus.PASS], [QCStatus.FAIL], [QCStatus.PASS, QCStatus.FAIL]],
+    ids=["pass-only", "fail-only", "pass-and-fail"],
+)
+def test_visualisation_folder_holding_its_own_csvs_is_read(
+    tmp_path: Path, key: str, statuses_to_write: list[QCStatus]
+):
+    """From looptrace v0.24.0, the CSVs are beside the ZARR, and the QC filtering block holds no folder per field of view."""
+    dragged = tmp_path / VISUALISATION_BLOCK / key
+    write_zarr(dragged, key)
+    for qc_status in statuses_to_write:
+        write_csv_lines(folder=dragged, key=key, status=qc_status)
+    qc_filtering_block = tmp_path / QC_FILTERING_BLOCK
+    qc_filtering_block.mkdir()
+    (qc_filtering_block / "run.traces.enriched.filtered.csv").write_text("traceId\n")
+
+    reader = get_reader(dragged)
+
+    assert reader is not None
+    layers = reader(dragged)
+    expected_layer_types = get_expected_layer_types(statuses_to_write)
+    assert [layer_type for _, _, layer_type in layers] == expected_layer_types
+
+
+def test_visualisation_folder_holding_its_own_csvs_takes_no_csvs_from_qc_filtering_block(
+    tmp_path: Path,
+):
+    """The folder's own CSVs are what it shows, even beside a QC filtering folder of the same name."""
+    dragged = tmp_path / VISUALISATION_BLOCK / "P0001"
+    write_zarr(dragged, "P0001")
+    write_csv_lines(folder=dragged, key="P0001", status=QCStatus.PASS)
+    write_csvs(tmp_path / QC_FILTERING_BLOCK / "P0001", "P0001")
+
+    reader = get_reader(dragged)
+
+    assert reader is not None
+    layers = reader(dragged)
+    assert [layer_type for _, _, layer_type in layers] == ["image", "points"]
+
+
+@pytest.mark.parametrize("missing", [QCStatus.PASS, QCStatus.FAIL])
+def test_a_missing_csv_is_warned_about(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, missing: QCStatus
+):
+    """Without the warning, a missing layer looks just like a field of view with no spots of that status."""
+    dragged = tmp_path / "P0001"
+    write_zarr(dragged, "P0001")
+    present = QCStatus.PASS if missing == QCStatus.FAIL else QCStatus.FAIL
+    write_csv_lines(folder=dragged, key="P0001", status=present)
+
+    with caplog.at_level(logging.WARNING):
+        reader = get_reader(dragged)
+
+    assert reader is not None
+    assert f"No QC {missing.value} CSV" in caplog.text
+    assert str(dragged) in caplog.text
+
+
+@pytest.mark.parametrize("in_visualisation_block", [False, True])
+def test_folder_with_a_zarr_and_no_csv_is_refused(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    in_visualisation_block: bool,  # noqa: FBT001
+):
+    """A ZARR alone gives no points to show, and may well be another plugin's to read."""
+    dragged = (
+        tmp_path / VISUALISATION_BLOCK / "P0001"
+        if in_visualisation_block
+        else tmp_path / "P0001"
+    )
+    write_zarr(dragged, "P0001")
+    # Even a same-named QC filtering folder doesn't help if it holds no CSV.
+    (tmp_path / QC_FILTERING_BLOCK / "P0001").mkdir(parents=True)
+
+    with caplog.at_level(logging.DEBUG):
+        assert get_reader(dragged) is None
+    assert "Neither a QC pass nor a QC fail CSV found for key 'P0001'" in caplog.text
+    # A folder that's refused isn't warned about, as napari may ask about any folder.
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
 
 
 def test_visualisation_folder_without_same_named_qc_filtering_folder_is_refused(
@@ -211,12 +297,7 @@ def test_qc_filtering_block_is_not_searched_from_outside_visualisation_block(
     write_zarr(dragged, "P0001__Chr2a")
     write_csvs(tmp_path / QC_FILTERING_BLOCK / "P0001__Chr2a", "P0001__Chr2a")
 
-    match get_reader(dragged):
-        case None:
-            pytest.fail("Failed to create reader")
-        case reader:
-            layers = reader(dragged)
-            assert [layer_type for _, _, layer_type in layers] == ["image"]
+    assert get_reader(dragged) is None
 
 
 def test_more_than_one_qc_filtering_block_is_refused(
