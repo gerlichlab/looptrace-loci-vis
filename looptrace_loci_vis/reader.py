@@ -164,7 +164,7 @@ def get_reader(path: PathOrPaths) -> Optional[Reader]:  # noqa: D103, C901, PLR0
                             fail_path.map(build_single_file_points_layer),
                             pass_path.map(build_single_file_points_layer),
                         ]
-                        return choose(identity)(maybe_layers)  # pyright: ignore[reportReturnType, reportArgumentType, reportUnknownVariableType]
+                        return list(choose(identity)(maybe_layers))  # pyright: ignore[reportArgumentType, reportUnknownArgumentType]
 
                     return parse
                 case []:
